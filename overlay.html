@@ -38,6 +38,44 @@
             z-index: 9999;
         }
 
+        /* --- Alternative Chat Modes --- */
+        #niconico-container.layout-vertical {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 24px;
+        }
+
+        #niconico-container.layout-horizontal {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-content: flex-end;
+            align-items: flex-end;
+            gap: 16px;
+            padding: 24px;
+        }
+
+        #niconico-container.layout-vertical .nico-msg,
+        #niconico-container.layout-horizontal .nico-msg {
+            position: relative; /* Override absolute positioning */
+            animation: none;    /* Disable scrolling animations */
+            transform: none !important;
+            will-change: auto;
+        }
+
+        /* Simple Pop-in for alternative layouts */
+        .animate-pop-in {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8) translateY(10px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
         /* --- Base Message --- */
         .nico-msg {
             position: absolute;
@@ -1657,10 +1695,17 @@
         <!-- === CORE SETTINGS (open by default) === -->
         <details open>
             <summary>🎮 Core Settings</summary>
-            <div class="section-body">
                 <div class="panel-row">
                     <div>
-                        <label>Movement</label>
+                        <label>Chat Display Mode</label>
+                        <select id="ctrl-display-mode">
+                            <option value="niconico">NicoNico (Floating)</option>
+                            <option value="vertical">Vertical (Standard)</option>
+                            <option value="horizontal">Horizontal (Ticker)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Movement (NicoNico Mode)</label>
                         <select id="ctrl-movement">
                             <option value="scroll">Scroll (Right → Left)</option>
                             <option value="plaster">Plaster / Stamp</option>
@@ -2072,18 +2117,18 @@
             const pickText = getPoolColor('colorPoolText', config.textColor);
             msg.style.setProperty('--nico-color', userColor || pickText || '#FFFFFF');
 
-            if (config.movementMode === 'scroll') {
+            if (config.movementMode === 'scroll' && config.chatDisplayMode === 'niconico') {
                 const lane = getAvailableLane();
                 const laneH = config.fontSize * 1.6;
                 msg.style.top = `${lane * (laneH + LANE_PADDING) + 10}px`;
                 reserveLane(lane, speed * 1000);
-            } else if (config.movementMode === 'plaster') {
+            } else if (config.movementMode === 'plaster' && config.chatDisplayMode === 'niconico') {
                 msg.style.top = `${Math.random() * 70 + 10}vh`;
                 msg.style.left = `${Math.random() * 60 + 10}vw`;
-            } else if (config.movementMode === 'float') {
+            } else if (config.movementMode === 'float' && config.chatDisplayMode === 'niconico') {
                 msg.style.top = `0px`;
                 msg.style.left = `${Math.random() * 80 + 10}vw`;
-            } else if (config.movementMode === 'zoom' || config.movementMode === 'swing') {
+            } else if ((config.movementMode === 'zoom' || config.movementMode === 'swing') && config.chatDisplayMode === 'niconico') {
                 msg.style.top = `${Math.random() * 60 + 10}vh`;
                 msg.style.left = `${Math.random() * 60 + 10}vw`;
             }
@@ -2153,13 +2198,38 @@
             inner.appendChild(textContainer);
             msg.appendChild(inner);
             if (badgeSpan) msg.appendChild(badgeSpan);
+            
+            // Container class updates
+            if (config.chatDisplayMode === 'vertical') {
+                container.className = 'layout-vertical';
+                msg.classList.add('animate-pop-in');
+            } else if (config.chatDisplayMode === 'horizontal') {
+                container.className = 'layout-horizontal';
+                msg.classList.add('animate-pop-in');
+            } else {
+                container.className = '';
+            }
+            
             container.appendChild(msg);
             activeMessages++;
 
-            setTimeout(() => {
-                if (msg.parentNode) msg.parentNode.removeChild(msg);
-                activeMessages--;
-            }, (speed + 0.5) * 1000);
+            // Cleanup Logic
+            if (config.chatDisplayMode === 'niconico') {
+                setTimeout(() => {
+                    if (msg.parentNode) msg.parentNode.removeChild(msg);
+                    activeMessages--;
+                }, (speed + 0.5) * 1000);
+            } else {
+                // Keep history limited to roughly 40 items for vertical/horizontal
+                setTimeout(() => {
+                    if (container.children.length > 40) {
+                        try {
+                            container.removeChild(container.firstChild);
+                            activeMessages--;
+                        } catch(e) {}
+                    }
+                }, 500); // Check length slightly after append
+            }
         }
 
         // ============================================================
@@ -2423,6 +2493,7 @@
             const panel = document.getElementById('test-panel');
             if (!panel || panel.style.display === 'none') return;
 
+            config.chatDisplayMode = document.getElementById('ctrl-display-mode').value;
             config.movementMode = document.getElementById('ctrl-movement').value;
             config.bubbleStyle = document.getElementById('ctrl-bubble').value;
             config.animationMode = document.getElementById('ctrl-anim').value;
@@ -2479,6 +2550,7 @@
 
         // --- Default config snapshot for reset ---
         const DEFAULT_CONFIG = {
+            chatDisplayMode: 'niconico',
             scrollSpeed: 8, fontSize: 32, fontFamily: 'Arial Black', fontUrl: '',
             textColor: '', textShadow: 'heavy', borderThickness: 1, opacity: 1.0,
             movementMode: 'scroll', animationMode: 'none', bubbleStyle: 'none',
@@ -2604,7 +2676,7 @@
 
         // --- Serializable config keys (exclude runtime-only fields) ---
         const PERSIST_KEYS = [
-            'scrollSpeed', 'fontSize', 'fontFamily', 'fontUrl', 'textColor',
+            'chatDisplayMode', 'scrollSpeed', 'fontSize', 'fontFamily', 'fontUrl', 'textColor',
             'textShadow', 'borderThickness', 'opacity', 'colorPool', 'colorPoolPrimary', 'colorPoolAccent', 'colorPoolText', 'movementMode',
             'animationMode', 'bubbleStyle', 'showUsername', 'userTheme', 'userColorSource', 'userSize', 'eventMode',
             'alertDuration', 'primaryColor', 'accentColor'
@@ -2720,6 +2792,7 @@
             const panel = document.getElementById('test-panel');
             if (!panel) return;
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            setVal('ctrl-display-mode', config.chatDisplayMode);
             setVal('ctrl-movement', config.movementMode);
             setVal('ctrl-bubble', config.bubbleStyle);
             setVal('ctrl-anim', config.animationMode);
