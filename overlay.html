@@ -1,0 +1,3081 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NicoNico Chat Overlay — Streamer.bot</title>
+
+    <!-- Streamer.bot WebSocket Client (CDN) -->
+    <script src="https://unpkg.com/@streamerbot/client@latest/dist/streamerbot-client.js"></script>
+
+    <style>
+        /* ============================================================
+       NicoNico-Style Scrolling Chat Overlay — CSS
+       ============================================================ */
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+        }
+
+        #niconico-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* --- Base Message --- */
+        .nico-msg {
+            position: absolute;
+            white-space: nowrap;
+            font-weight: 900;
+            line-height: 1.3;
+            pointer-events: none;
+            will-change: transform;
+            font-family: var(--nico-font, 'Arial Black', 'Impact', sans-serif);
+            font-size: var(--nico-font-size, 32px);
+            color: var(--nico-color, #FFFFFF);
+        }
+
+        /* --- Movement Animations --- */
+        .move-scroll {
+            animation: slideInRight var(--nico-speed, 8s) linear forwards;
+        }
+
+        .move-plaster {
+            animation: plasterSlam 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards,
+                fadeOutDown 0.5s calc(var(--nico-speed, 8s) - 0.5s) ease-in forwards;
+        }
+
+        .move-float {
+            animation: floatUp var(--nico-speed, 8s) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .move-zoom {
+            animation: zoomInPopup 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+                fadeOutScale 0.5s calc(var(--nico-speed, 8s) - 0.5s) cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+        }
+
+        .move-swing {
+            animation: dropAndSwing 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+                fadeOutUp 0.5s calc(var(--nico-speed, 8s) - 0.5s) ease-in forwards;
+            transform-origin: top center;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100vw);
+            }
+
+            to {
+                transform: translateX(-100vw) translateX(-100%);
+            }
+        }
+
+        @keyframes plasterSlam {
+            0% {
+                transform: scale(3) rotate(15deg);
+                opacity: 0;
+                filter: blur(10px);
+            }
+
+            100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+                filter: blur(0);
+            }
+        }
+
+        @keyframes fadeOutDown {
+            0% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.9) translateY(20vh);
+                opacity: 0;
+                filter: blur(5px);
+            }
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(110vh) translateX(0);
+                opacity: 0;
+            }
+
+            5% {
+                opacity: 1;
+            }
+
+            95% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-30vh) translateX(0);
+                opacity: 0;
+            }
+        }
+
+        @keyframes zoomInPopup {
+            0% {
+                transform: scale(0.5) translateY(20px);
+                opacity: 0;
+                filter: blur(8px);
+            }
+
+            100% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+                filter: blur(0);
+            }
+        }
+
+        @keyframes fadeOutScale {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+                filter: blur(0);
+            }
+
+            100% {
+                transform: scale(0.8);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes dropAndSwing {
+            0% {
+                transform: translateY(-50vh) rotate(-15deg);
+                opacity: 0;
+            }
+
+            40% {
+                transform: translateY(0) rotate(10deg);
+                opacity: 1;
+            }
+
+            60% {
+                transform: rotate(-6deg);
+            }
+
+            80% {
+                transform: rotate(3deg);
+            }
+
+            100% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOutUp {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-20vh);
+                opacity: 0;
+                filter: blur(5px);
+            }
+        }
+
+        /* --- Text Shadow Variants --- */
+        .nico-msg.shadow-none {
+            text-shadow: none;
+        }
+
+        .nico-msg.shadow-light {
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5), -1px -1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .nico-msg.shadow-heavy {
+            text-shadow:
+                2px 2px 0 #000, -2px -2px 0 #000,
+                2px -2px 0 #000, -2px 2px 0 #000,
+                0 2px 0 #000, 0 -2px 0 #000,
+                2px 0 0 #000, -2px 0 0 #000;
+        }
+
+        /* --- Letter/Word Reveal Animation --- */
+        .nico-msg .nico-char {
+            display: inline-block;
+            opacity: 0;
+            animation: charReveal 0.3s ease forwards;
+        }
+
+        @keyframes charReveal {
+            0% {
+                opacity: 0;
+                transform: translateY(8px) scale(0.7);
+                filter: blur(4px);
+            }
+
+            60% {
+                transform: translateY(-2px) scale(1.05);
+                filter: blur(0);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                filter: blur(0);
+            }
+        }
+
+        :root {
+            /* Keep existing */
+            --nico-bg: rgba(0, 0, 0, 0.4);
+            --nico-color: #fff;
+            --nico-font: 'Arial', sans-serif;
+            --nico-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+
+            /* Chic Overhaul Core Variables */
+            --font-chic: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            --font-playful: 'Quicksand', 'Nunito', 'Varela Round', sans-serif;
+            --shadow-soft: 0 12px 36px -4px rgba(0, 0, 0, 0.15), 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+            --shadow-neon: 0 0 15px rgba(255, 255, 255, 0.2), inset 0 0 10px rgba(255, 255, 255, 0.1);
+            --border-thin: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.12);
+            --border-solid-thin: var(--nico-border-width, 1px) solid rgba(0, 0, 0, 0.1);
+            --border-radius-pill: 99px;
+            --border-radius-soft: 16px;
+        }
+
+        /* Enforce blur filter performance */
+        .nico-msg {
+            transform: translateZ(0);
+            will-change: transform, left, top, opacity;
+        }
+
+        /* --- Bubble Styles --- */
+        .bubble-none {
+            /* intentionally unstyled — classic NicoNico look */
+            font-family: var(--font-chic);
+        }
+
+        .bubble-rounded .nico-inner {
+            background: rgba(20, 20, 20, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: var(--border-thin);
+            border-radius: var(--border-radius-pill);
+            padding: 8px 24px;
+            font-family: var(--font-chic);
+            box-shadow: var(--shadow-soft);
+        }
+
+        /* --- Frosted Glass --- */
+        .bubble-glass .nico-inner {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+            backdrop-filter: blur(24px) saturate(140%);
+            -webkit-backdrop-filter: blur(24px) saturate(140%);
+            border: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.15);
+            border-top: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.3);
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: var(--border-radius-soft);
+            padding: 10px 24px;
+            color: #fff !important;
+            box-shadow: 0 16px 32px 0 rgba(0, 0, 0, 0.15);
+            font-family: var(--font-chic);
+            font-weight: 300;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        /* --- Neumorphic (Soft Extrude) --- */
+        .bubble-neumorphic .nico-inner {
+            background: #e6e9ef;
+            color: #4a5568 !important;
+            border-radius: var(--border-radius-pill);
+            padding: 10px 24px;
+            font-family: var(--font-chic);
+            font-weight: 500;
+            text-shadow: none;
+            box-shadow: 6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8);
+            border: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* --- Gradient Edge --- */
+        .bubble-gradient-edge .nico-inner {
+            position: relative;
+            background: #111;
+            color: #fff !important;
+            border-radius: 12px;
+            padding: 10px 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-shadow: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            background-clip: padding-box;
+            border: 3px solid transparent;
+        }
+
+        .bubble-gradient-edge .nico-inner::after {
+            position: absolute;
+            top: -3px;
+            bottom: -3px;
+            left: -3px;
+            right: -3px;
+            background: linear-gradient(60deg, #f79533, #f37055, #ef4e7b, #a166ab, #5073b8, #1098ad, #07b39b, #6fba82);
+            content: '';
+            z-index: -1;
+            border-radius: 14px;
+            animation: rotateGradient 4s linear infinite;
+        }
+
+        @keyframes rotateGradient {
+            0% {
+                filter: hue-rotate(0deg);
+            }
+
+            100% {
+                filter: hue-rotate(360deg);
+            }
+        }
+
+        /* --- Editorial Brutalist --- */
+        .bubble-editorial .nico-inner {
+            background: #fff;
+            color: #000 !important;
+            border: 4px solid #000;
+            border-radius: 0;
+            padding: 10px 24px;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -1px;
+            text-shadow: none;
+            box-shadow: 8px 8px 0px #000;
+        }
+
+        /* --- Speech Bubble (Chic Minimal Dot) --- */
+        .bubble-speech .nico-inner {
+            position: relative;
+            background: #fdfdfd;
+            background-image: radial-gradient(#e0e0e0 10%, transparent 11%);
+            background-size: 6px 6px;
+            color: #1a1a2e !important;
+            border: 1.5px solid #1a1a2e;
+            border-radius: var(--border-radius-soft);
+            padding: 10px 22px;
+            box-shadow: 4px 4px 0 rgba(26, 26, 46, 0.9);
+            text-shadow: none;
+            font-family: var(--font-chic);
+            font-weight: 600;
+        }
+
+        .bubble-speech .nico-inner::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 20px;
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 2px solid transparent;
+            border-top: 10px solid #1a1a2e;
+            transform: rotate(-10deg);
+        }
+
+        .bubble-speech .nico-inner::before {
+            content: '';
+            position: absolute;
+            bottom: -7px;
+            left: 22px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 1px solid transparent;
+            border-top: 8px solid #fdfdfd;
+            transform: rotate(-10deg);
+            z-index: 1;
+        }
+
+        /* --- Neon Glow (Chic OLED) --- */
+        .bubble-glow .nico-inner {
+            background: rgba(10, 10, 12, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: var(--nico-border-width, 1px) solid var(--nico-color, #00e5ff);
+            border-radius: var(--border-radius-pill);
+            padding: 8px 24px;
+            font-family: var(--font-chic);
+            font-weight: 300;
+            letter-spacing: 0.5px;
+            animation: neonPulse 3s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+        }
+
+        @keyframes neonPulse {
+            0% {
+                box-shadow: 0 0 8px rgba(0, 229, 255, 0.2), inset 0 0 4px rgba(0, 229, 255, 0.1);
+                text-shadow: 0 0 4px var(--nico-color, #00e5ff), 0 0 8px rgba(0, 229, 255, 0.2);
+                border-color: rgba(0, 229, 255, 0.4);
+            }
+
+            100% {
+                box-shadow: 0 0 16px rgba(0, 229, 255, 0.4), inset 0 0 8px rgba(0, 229, 255, 0.2);
+                text-shadow: 0 0 8px var(--nico-color, #00e5ff), 0 0 16px rgba(0, 229, 255, 0.6);
+                border-color: rgba(0, 229, 255, 0.8);
+            }
+        }
+
+        /* --- Holographic (Chic Pearlescent) --- */
+        .bubble-holo .nico-inner {
+            background: linear-gradient(124deg, rgba(255, 230, 240, 0.6), rgba(230, 255, 240, 0.6), rgba(230, 240, 255, 0.6), rgba(250, 230, 255, 0.6));
+            background-size: 400% 400%;
+            animation: holoFlow 8s ease infinite;
+            backdrop-filter: blur(16px) saturate(120%);
+            -webkit-backdrop-filter: blur(16px) saturate(120%);
+            border: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.6);
+            border-top: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.9);
+            border-radius: var(--border-radius-soft);
+            padding: 8px 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), inset 0 0 15px rgba(255, 255, 255, 0.5);
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+            color: #4a4a4a !important;
+            font-family: var(--font-chic);
+            font-weight: 500;
+        }
+
+        @keyframes holoFlow {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* --- Cyberpunk (Neon Glitch) --- */
+        .bubble-cyber .nico-inner {
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(0, 255, 255, 0.03) 0px,
+                    transparent 2px,
+                    transparent 4px
+                ),
+                linear-gradient(135deg, rgba(10, 0, 20, 0.95), rgba(20, 5, 30, 0.95));
+            border: var(--nico-border-width, 2px) solid;
+            border-image: linear-gradient(135deg, #ff00ff, #00ffff, #ff00ff) 1;
+            padding: 10px 24px;
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #0ff !important;
+            text-shadow:
+                0 0 5px rgba(0, 255, 255, 0.7),
+                0 0 20px rgba(0, 255, 255, 0.3),
+                2px 0 0 rgba(255, 0, 255, 0.4),
+                -2px 0 0 rgba(0, 255, 255, 0.4);
+            box-shadow:
+                0 0 15px rgba(255, 0, 255, 0.3),
+                0 0 30px rgba(0, 255, 255, 0.15),
+                inset 0 0 20px rgba(0, 255, 255, 0.05);
+            animation: cyberJitter 4s infinite;
+            position: relative;
+        }
+
+        .bubble-cyber .nico-inner::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 255, 0.03) 2px,
+                rgba(0, 255, 255, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes cyberJitter {
+            0%, 88%, 100% {
+                transform: translate(0, 0) skewX(0deg);
+                text-shadow:
+                    0 0 5px rgba(0, 255, 255, 0.7),
+                    0 0 20px rgba(0, 255, 255, 0.3),
+                    2px 0 0 rgba(255, 0, 255, 0.4),
+                    -2px 0 0 rgba(0, 255, 255, 0.4);
+            }
+            90% {
+                transform: translate(3px, -2px) skewX(-2deg);
+                text-shadow:
+                    4px 0 0 rgba(255, 0, 255, 0.9),
+                    -4px 0 0 rgba(0, 255, 255, 0.9);
+            }
+            92% {
+                transform: translate(-2px, 1px) skewX(1deg);
+            }
+            94% {
+                transform: translate(2px, 2px) skewX(-1deg);
+                text-shadow:
+                    -3px 0 0 rgba(255, 0, 255, 0.6),
+                    3px 0 0 rgba(0, 255, 255, 0.6);
+            }
+            96% {
+                transform: translate(-1px, -1px) skewX(0deg);
+            }
+        }
+
+        /* --- Sticky Note (Soft Matte) --- */
+        .bubble-sticky .nico-inner {
+            background: #fffdf2;
+            color: #4a4a4a !important;
+            border: var(--nico-border-width, 1px) solid rgba(0, 0, 0, 0.05);
+            padding: 12px 28px;
+            font-family: var(--font-chic);
+            font-style: italic;
+            text-shadow: none;
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-bottom-right-radius: 40px 6px;
+            position: relative;
+        }
+
+        .bubble-sticky .nico-inner::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-1deg);
+            width: 40px;
+            height: 18px;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: var(--border-thin);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+        }
+
+        /* --- Retro Terminal (Sleek Slate) --- */
+        .bubble-terminal .nico-inner {
+            background: rgba(20, 22, 26, 0.95);
+            color: #64ffda !important;
+            border: var(--nico-border-width, 1px) solid rgba(100, 255, 218, 0.2);
+            padding: 10px 24px;
+            font-family: var(--font-mono);
+            font-size: 0.95em;
+            text-shadow: 0 0 8px rgba(100, 255, 218, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+            position: relative;
+        }
+
+        /* --- Vaporwave (Refined Synth) --- */
+        .bubble-vapor .nico-inner {
+            background: linear-gradient(135deg, #2b1b3d 0%, #1a0b2e 100%);
+            border: var(--nico-border-width, 1px) solid rgba(255, 107, 181, 0.4);
+            border-radius: var(--border-radius-soft);
+            padding: 10px 28px;
+            font-family: var(--font-chic);
+            color: #ff6bb5 !important;
+            text-shadow: 0 0 15px rgba(255, 107, 181, 0.5);
+            box-shadow: 0 10px 40px rgba(255, 107, 181, 0.15), inset 0 0 20px rgba(255, 107, 181, 0.05);
+        }
+
+        .bubble-vapor .nico-inner::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background-image: linear-gradient(90deg, rgba(255, 107, 181, 0.1) 1px, transparent 1px), linear-gradient(0deg, rgba(255, 107, 181, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            pointer-events: none;
+            mask-image: linear-gradient(to top, rgba(0, 0, 0, 1), transparent);
+            -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1), transparent);
+        }
+
+        /* --- Fantasy RPG (Minimal Dark Academia) --- */
+        .bubble-rpg .nico-inner {
+            background: #2a2722;
+            border: var(--nico-border-width, 1px) solid #cfaa70;
+            border-radius: 4px;
+            padding: 12px 28px;
+            font-family: 'Playfair Display', 'Georgia', serif;
+            color: #e8dcc7 !important;
+            text-shadow: none;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(207, 170, 112, 0.2);
+            display: inline-block;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- Cute Cat (Sleek Minimalist Ears) --- */
+        .bubble-cat .nico-inner {
+            background: #1a1a1a;
+            color: #f0f0f0 !important;
+            border: var(--nico-border-width, 1px) solid #333;
+            border-radius: var(--border-radius-pill);
+            padding: 10px 24px;
+            font-family: var(--font-chic);
+            font-weight: 500;
+            text-shadow: none;
+            position: relative;
+            box-shadow: var(--shadow-soft);
+            margin-top: 15px;
+            display: inline-block;
+        }
+
+        .bubble-cat .nico-inner::before,
+        .bubble-cat .nico-inner::after {
+            content: '';
+            position: absolute;
+            top: -10px;
+            width: 16px;
+            height: 16px;
+            border: var(--nico-border-width, 1px) solid #444;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0));
+            z-index: -1;
+        }
+
+        .bubble-cat .nico-inner::before {
+            left: 20px;
+            transform: rotate(45deg) skew(10deg, 10deg);
+            border-bottom: none;
+            border-right: none;
+            border-radius: 3px 0 0 0;
+        }
+
+        .bubble-cat .nico-inner::after {
+            right: 20px;
+            transform: rotate(-45deg) skew(-10deg, -10deg);
+            border-bottom: none;
+            border-left: none;
+            border-radius: 0 3px 0 0;
+        }
+
+        /* --- Cute Frog (Chic Geometric Bumps) --- */
+        .bubble-frog .nico-inner {
+            background: #d4e0ce;
+            color: #3b5235 !important;
+            border: var(--nico-border-width, 1px) solid rgba(133, 163, 122, 0.4);
+            border-radius: var(--border-radius-pill);
+            padding: 12px 28px;
+            font-family: var(--font-chic);
+            font-weight: 600;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(133, 163, 122, 0.2);
+            margin-top: 16px;
+            display: inline-block;
+        }
+
+        .bubble-frog .nico-inner::before,
+        .bubble-frog .nico-inner::after {
+            content: '';
+            position: absolute;
+            top: -14px;
+            width: 24px;
+            height: 24px;
+            background: #d4e0ce;
+            border-radius: 50%;
+            z-index: -1;
+            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.8);
+            border: var(--nico-border-width, 1px) solid rgba(133, 163, 122, 0.2);
+        }
+
+        .bubble-frog .nico-inner::before {
+            left: 25px;
+        }
+
+        .bubble-frog .nico-inner::after {
+            right: 25px;
+        }
+
+        /* --- Cute Worm (Inching Segmented Creeper) --- */
+        .bubble-worm .nico-inner {
+            background: var(--nico-primary, #b5e48c);
+            color: #1a3a2a !important;
+            border: var(--nico-border-width, 2px) solid var(--nico-accent, #76c893);
+            border-radius: 30px;
+            padding: 10px 24px 10px 30px;
+            font-family: var(--font-chic);
+            font-weight: 600;
+            text-shadow: none;
+            box-shadow: inset -4px -4px 10px rgba(0, 0, 0, 0.1), 0 8px 15px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            position: relative;
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0, 0, 0, 0.05) 15px, rgba(0, 0, 0, 0.05) 20px);
+            animation: inchwormStretch 2s ease-in-out infinite alternate;
+            transform-origin: left center;
+        }
+
+        .bubble-worm .nico-inner::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 40%;
+            width: 4px;
+            height: 4px;
+            background: #1a3a2a;
+            border-radius: 50%;
+            box-shadow: 6px 0 0 #1a3a2a;
+            /* two little eyes looking left */
+            z-index: 2;
+        }
+
+        @keyframes inchwormStretch {
+            0% {
+                transform: scaleX(1);
+                border-radius: 30px;
+            }
+
+            100% {
+                transform: scaleX(1.15) scaleY(0.9);
+                border-radius: 40px;
+            }
+        }
+
+        /* --- Cute Slime (Jiggly Glass Droplet) --- */
+        .bubble-slime .nico-inner {
+            background: var(--nico-primary, rgba(160, 240, 210, 0.4));
+            backdrop-filter: blur(12px) saturate(120%);
+            -webkit-backdrop-filter: blur(12px) saturate(120%);
+            color: #1b4332 !important;
+            border: var(--nico-border-width, 2px) solid var(--nico-accent, rgba(255, 255, 255, 0.7));
+            border-bottom: var(--nico-border-width, 3px) solid rgba(255, 255, 255, 0.9);
+            border-radius: 50% 50% 30% 30% / 60% 60% 40% 40%;
+            padding: 18px 32px 14px 32px;
+            font-family: var(--font-chic);
+            font-weight: 700;
+            position: relative;
+            box-shadow: inset 0 -8px 20px rgba(255, 255, 255, 0.6), inset 0 6px 15px rgba(255, 255, 255, 0.3), 0 10px 25px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            animation: slimeSquish 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+            transform-origin: bottom center;
+        }
+
+        .bubble-slime .nico-inner::before {
+            content: '';
+            position: absolute;
+            top: 15%;
+            left: 20%;
+            width: 20px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            transform: rotate(-15deg);
+            filter: blur(0.5px);
+        }
+
+        @keyframes slimeSquish {
+            0% {
+                transform: scaleY(1) scaleX(1);
+                border-radius: 50% 50% 30% 30% / 60% 60% 40% 40%;
+            }
+
+            100% {
+                transform: scaleY(0.9) scaleX(1.05);
+                border-radius: 50% 50% 40% 40% / 50% 50% 50% 50%;
+            }
+        }
+             /* --- Spooky Ghost (Poltergeist Companion) --- */
+        .bubble-ghost .nico-inner {
+            background: var(--nico-primary, rgba(40, 42, 54, 0.95));
+            color: #f8f8f2 !important;
+            border: var(--nico-border-width, 1px) solid var(--nico-accent, rgba(139, 233, 253, 0.4));
+            border-radius: 10px 20px 20px 10px;
+            padding: 14px 24px 14px 44px;
+            font-family: var(--font-chic);
+            font-weight: 500;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 1px 8px rgba(255, 255, 255, 0.05);
+            display: inline-block;
+            overflow: visible;
+        }
+
+        /* Ghost body */
+        .bubble-ghost .nico-inner::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 50%;
+            transform: translateY(-55%);
+            width: 32px;
+            height: 38px;
+            background: radial-gradient(ellipse at 50% 35%, #ffffff 0%, #e8ecf4 100%);
+            border-radius: 50% 50% 0 0;
+            box-shadow: 0 0 18px rgba(255, 255, 255, 0.5);
+            animation: ghostBob 2.5s ease-in-out infinite alternate;
+            clip-path: polygon(
+                0% 0%, 15% 0%, 50% 0%, 85% 0%, 100% 0%,
+                100% 75%,
+                92% 100%, 83% 78%, 75% 100%, 67% 78%, 58% 100%, 50% 78%, 42% 100%, 33% 78%, 25% 100%, 17% 78%, 8% 100%,
+                0% 75%
+            );
+            z-index: 2;
+        }
+
+        /* Ghost eyes */
+        .bubble-ghost .nico-inner::after {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 50%;
+            transform: translateY(-70%);
+            width: 5px;
+            height: 6px;
+            background: #282a36;
+            border-radius: 50%;
+            box-shadow: 8px 0 0 #282a36;
+            animation: ghostBob 2.5s ease-in-out infinite alternate;
+            z-index: 3;
+        }
+
+        @keyframes ghostBob {
+            0% { transform: translateY(-55%) translateX(0); }
+            50% { transform: translateY(-62%) translateX(-2px); }
+            100% { transform: translateY(-48%) translateX(1px); }
+        }
+
+        /* --- Elegant Floral (Chic Botanical) --- */
+        .bubble-floral .nico-inner {
+            background: var(--nico-primary, #fff0f5);
+            color: #6a4c93 !important;
+            border: var(--nico-border-width, 1px) solid var(--nico-accent, #e5b3cc);
+            border-radius: 8px 30px 8px 30px;
+            padding: 14px 32px;
+            font-family: 'Georgia', 'Playfair Display', serif;
+            font-weight: 400;
+            font-style: italic;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 8px 20px rgba(106, 76, 147, 0.1);
+            display: inline-block;
+            overflow: hidden;
+        }
+
+        .bubble-floral .nico-inner::before {
+            content: '❀';
+            position: absolute;
+            top: -15px;
+            left: -10px;
+            font-size: 50px;
+            color: var(--nico-accent, rgba(229, 179, 204, 0.4));
+            opacity: 0.5;
+            pointer-events: none;
+            font-style: normal;
+        }
+
+        .bubble-floral .nico-inner::after {
+            content: '✿';
+            position: absolute;
+            bottom: -20px;
+            right: -5px;
+            font-size: 60px;
+            color: var(--nico-accent, rgba(229, 179, 204, 0.3));
+            opacity: 0.6;
+            pointer-events: none;
+            transform: rotate(30deg);
+            font-style: normal;
+        }
+
+        /* --- Chic Polka (Refined Dotted Pattern) --- */
+        .bubble-polka .nico-inner {
+            background-color: var(--nico-primary, #ffffff);
+            background-image: radial-gradient(var(--nico-accent, #e2e8f0) 2px, transparent 2px);
+            background-size: 14px 14px;
+            background-position: 0 0, 7px 7px;
+            color: #334155 !important;
+            border: var(--nico-border-width, 2px) solid var(--nico-primary, #ffffff);
+            border-radius: 20px;
+            padding: 12px 28px;
+            font-family: var(--font-chic);
+            font-weight: 600;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            display: inline-block;
+        }
+
+        /* --- Elegant Lace (Scalloped Filigree) --- */
+        .bubble-lace .nico-inner {
+            background: var(--nico-primary, #ffffff);
+            color: #6b5b73 !important;
+            border: none;
+            border-radius: 0;
+            padding: 20px 34px;
+            font-family: 'Georgia', 'Playfair Display', serif;
+            font-style: italic;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            display: inline-block;
+        }
+
+        .bubble-lace .nico-inner::before {
+            content: '';
+            position: absolute;
+            inset: -6px;
+            background:
+                radial-gradient(circle 5px at 8px -2px, transparent 5px, var(--nico-accent, #d4bfdb) 5.5px, transparent 6px) top / 16px 8px repeat-x,
+                radial-gradient(circle 5px at 8px calc(100% + 2px), transparent 5px, var(--nico-accent, #d4bfdb) 5.5px, transparent 6px) bottom / 16px 8px repeat-x,
+                radial-gradient(circle 5px at -2px 8px, transparent 5px, var(--nico-accent, #d4bfdb) 5.5px, transparent 6px) left / 8px 16px repeat-y,
+                radial-gradient(circle 5px at calc(100% + 2px) 8px, transparent 5px, var(--nico-accent, #d4bfdb) 5.5px, transparent 6px) right / 8px 16px repeat-y;
+            background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* --- Chic Tartan (Pastel Plaid) --- */
+        .bubble-tartan .nico-inner {
+            background-color: var(--nico-primary, #fcf7f8);
+            background-image:
+                repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(0, 0, 0, 0.03) 20px, rgba(0, 0, 0, 0.03) 22px),
+                repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(0, 0, 0, 0.03) 20px, rgba(0, 0, 0, 0.03) 22px),
+                repeating-linear-gradient(90deg, var(--nico-accent, rgba(200, 150, 150, 0.1)), var(--nico-accent, rgba(200, 150, 150, 0.1)) 4px, transparent 4px, transparent 40px),
+                repeating-linear-gradient(0deg, var(--nico-accent, rgba(200, 150, 150, 0.1)), var(--nico-accent, rgba(200, 150, 150, 0.1)) 4px, transparent 4px, transparent 40px);
+            color: #2c3e50 !important;
+            border: var(--nico-border-width, 1px) solid var(--nico-accent, rgba(200, 150, 150, 0.3));
+            border-radius: 4px;
+            padding: 14px 28px;
+            font-family: var(--font-chic);
+            font-weight: 500;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+            display: inline-block;
+        }
+
+        /* --- Kawaii Milk / Boba (Gravity-Settled Pearls) --- */
+        .bubble-milk .nico-inner {
+            background-color: var(--nico-primary, rgba(255, 245, 248, 0.92));
+            /* Shiny 3D boba pearls (reflection + brown pearl body) */
+            background-image:
+                /* Reflections */
+                radial-gradient(circle 1px at 11% 83.5%, rgba(255,255,255,0.8) 1px, transparent 1.5px),
+                radial-gradient(circle 0.8px at 24.5% 89%, rgba(255,255,255,0.8) 0.8px, transparent 1.2px),
+                radial-gradient(circle 1px at 37% 80.5%, rgba(255,255,255,0.8) 1px, transparent 1.5px),
+                radial-gradient(circle 0.8px at 49.5% 91%, rgba(255,255,255,0.8) 0.8px, transparent 1.2px),
+                radial-gradient(circle 1px at 62% 86.5%, rgba(255,255,255,0.8) 1px, transparent 1.5px),
+                radial-gradient(circle 0.8px at 74.5% 83%, rgba(255,255,255,0.8) 0.8px, transparent 1.2px),
+                radial-gradient(circle 1px at 87% 88.5%, rgba(255,255,255,0.8) 1px, transparent 1.5px),
+                radial-gradient(circle 0.6px at 17.5% 71%, rgba(255,255,255,0.8) 0.6px, transparent 1px),
+                radial-gradient(circle 0.6px at 44.5% 74%, rgba(255,255,255,0.8) 0.6px, transparent 1px),
+                radial-gradient(circle 0.6px at 69.5% 69%, rgba(255,255,255,0.8) 0.6px, transparent 1px),
+                /* Pearls */
+                radial-gradient(circle 5px at 12% 85%, var(--nico-accent, #8B4513) 5px, transparent 5.5px),
+                radial-gradient(circle 4px at 25% 90%, var(--nico-accent, #8B4513) 4px, transparent 4.5px),
+                radial-gradient(circle 5px at 38% 82%, var(--nico-accent, #8B4513) 5px, transparent 5.5px),
+                radial-gradient(circle 4px at 50% 92%, var(--nico-accent, #8B4513) 4px, transparent 4.5px),
+                radial-gradient(circle 5px at 63% 88%, var(--nico-accent, #8B4513) 5px, transparent 5.5px),
+                radial-gradient(circle 4px at 75% 84%, var(--nico-accent, #8B4513) 4px, transparent 4.5px),
+                radial-gradient(circle 5px at 88% 90%, var(--nico-accent, #8B4513) 5px, transparent 5.5px),
+                radial-gradient(circle 3px at 18% 72%, var(--nico-accent, #8B4513) 3px, transparent 3.5px),
+                radial-gradient(circle 3px at 45% 75%, var(--nico-accent, #8B4513) 3px, transparent 3.5px),
+                radial-gradient(circle 3px at 70% 70%, var(--nico-accent, #8B4513) 3px, transparent 3.5px),
+                radial-gradient(circle 2px at 30% 60%, var(--nico-accent, #8B4513) 2px, transparent 2.5px),
+                radial-gradient(circle 2px at 58% 55%, var(--nico-accent, #8B4513) 2px, transparent 2.5px);
+            background-repeat: no-repeat;
+            color: #8B4513 !important;
+            border: var(--nico-border-width, 3px) solid var(--nico-accent, #ffb6c1);
+            border-radius: 20px 20px 24px 24px;
+            padding: 14px 28px 22px 28px;
+            font-family: var(--font-playful);
+            font-weight: 700;
+            text-shadow: none;
+            position: relative;
+            box-shadow: 0 8px 20px rgba(255, 182, 193, 0.3), inset 0 -8px 16px rgba(139, 69, 19, 0.06);
+            display: inline-block;
+        }
+
+        .nico-username {
+            font-weight: 700;
+            opacity: 0.8;
+            font-size: 0.8em;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            white-space: nowrap;
+        }
+
+        /* Username Layout: Inline Prefix */
+        .user-layout-inline .nico-username {
+            margin-right: 6px;
+            opacity: 0.7;
+            text-shadow: inherit;
+        }
+
+        /* Username Layout: Badges (Top & Bottom) */
+        .user-layout-badge-top.nico-msg, 
+        .user-layout-badge-bottom.nico-msg {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .user-layout-badge-top .nico-username,
+        .user-layout-badge-bottom .nico-username {
+            background: var(--nico-accent, rgba(40,40,40,0.9));
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.7em;
+            letter-spacing: 0.5px;
+            border: var(--nico-border-width, 1px) solid rgba(255,255,255,0.4);
+            box-shadow: var(--shadow-soft);
+            z-index: 50;
+            white-space: nowrap;
+            margin-left: 20px;
+        }
+
+        .user-layout-badge-top .nico-username {
+            order: -1;
+            margin-bottom: -10px;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            border-bottom: none;
+        }
+
+        .user-layout-badge-top .nico-inner {
+            order: 0;
+            z-index: 51;
+        }
+
+        .user-layout-badge-bottom .nico-username {
+            margin-top: -10px;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+            border-top: none;
+        }
+
+        .user-layout-badge-bottom .nico-inner {
+            order: -1;
+            z-index: 51;
+        }
+
+        /* Username Theme Classes */
+        .user-theme-dark .nico-username {
+            background: rgba(20, 20, 20, 0.9) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            color: var(--user-color, #fff) !important;
+        }
+
+        .user-theme-light .nico-username {
+            background: rgba(250, 250, 250, 0.95) !important;
+            border-color: rgba(0, 0, 0, 0.15) !important;
+            color: var(--user-color, #111) !important;
+            box-shadow: var(--shadow-soft) !important;
+        }
+
+        .user-theme-clear .nico-username {
+            background: transparent !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            color: var(--user-color, #fff) !important;
+        }
+
+        .user-theme-clear.user-layout-badge-top .nico-username {
+            margin-bottom: -5px;
+        }
+        
+        .user-theme-clear.user-layout-badge-bottom .nico-username {
+            margin-top: -5px;
+        }
+
+        /* --- NicoNico-style Event Scroll (special styling) --- */
+        .nico-msg.nico-event {
+            font-size: calc(var(--nico-font-size, 32px) * 1.3);
+        }
+
+        .nico-msg.nico-event .nico-inner {
+            padding: 8px 24px;
+            border-radius: 12px;
+            font-weight: 900;
+        }
+
+        .nico-msg.event-follow .nico-inner {
+            background: linear-gradient(135deg, rgba(0, 200, 100, 0.6), rgba(0, 150, 80, 0.4));
+            border: var(--nico-border-width, 2px) solid #00e564;
+            text-shadow: 0 0 8px rgba(0, 229, 100, 0.5);
+        }
+
+        .nico-msg.event-sub .nico-inner,
+        .nico-msg.event-resub .nico-inner {
+            background: linear-gradient(135deg, rgba(140, 80, 220, 0.6), rgba(100, 50, 180, 0.4));
+            border: var(--nico-border-width, 2px) solid #a855f7;
+            text-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+        }
+
+        .nico-msg.event-giftsub .nico-inner,
+        .nico-msg.event-giftbomb .nico-inner {
+            background: linear-gradient(135deg, rgba(0, 200, 220, 0.6), rgba(0, 150, 180, 0.4));
+            border: var(--nico-border-width, 2px) solid #00e5ff;
+            text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+        }
+
+        .nico-msg.event-raid .nico-inner {
+            background: linear-gradient(135deg, rgba(255, 200, 0, 0.6), rgba(200, 150, 0, 0.4));
+            border: var(--nico-border-width, 2px) solid #ffd700;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+        }
+
+        .nico-msg.event-cheer .nico-inner {
+            background: linear-gradient(135deg, rgba(255, 100, 150, 0.6), rgba(200, 60, 120, 0.4));
+            border: var(--nico-border-width, 2px) solid #ff69b4;
+            text-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
+        }
+
+        /* ============================================================
+           CENTERED ALERT SYSTEM
+           ============================================================ */
+        #alert-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 10000;
+        }
+
+        .event-alert {
+            position: absolute;
+            text-align: center;
+            pointer-events: none;
+            animation: alertIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .event-alert.alert-exit {
+            animation: alertOut 0.5s ease-in forwards;
+        }
+
+        @keyframes alertIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.3) translateY(40px);
+                filter: blur(10px);
+            }
+
+            60% {
+                transform: scale(1.08) translateY(-5px);
+                filter: blur(0);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: blur(0);
+            }
+        }
+
+        @keyframes alertOut {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.8) translateY(-30px);
+                filter: blur(6px);
+            }
+        }
+
+        .alert-box {
+            background: rgba(10, 10, 30, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 30px 50px;
+            min-width: 400px;
+            max-width: 700px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px var(--alert-glow, rgba(0, 229, 255, 0.2));
+            border: var(--nico-border-width, 2px) solid var(--alert-border, rgba(255, 255, 255, 0.15));
+        }
+
+        .alert-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+            animation: iconBounce 0.8s ease 0.3s;
+        }
+
+        @keyframes iconBounce {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.3);
+            }
+        }
+
+        .alert-title {
+            font-family: 'Arial Black', Impact, sans-serif;
+            font-size: 28px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+            color: var(--alert-accent, #00e5ff);
+        }
+
+        .alert-message {
+            font-family: 'Arial', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .alert-sub {
+            font-family: 'Arial', sans-serif;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 4px;
+        }
+
+        /* Per-event alert colors */
+        .alert-follow {
+            --alert-accent: #00e564;
+            --alert-border: rgba(0, 229, 100, 0.4);
+            --alert-glow: rgba(0, 229, 100, 0.25);
+        }
+
+        .alert-sub {
+            --alert-accent: #a855f7;
+            --alert-border: rgba(168, 85, 247, 0.4);
+            --alert-glow: rgba(168, 85, 247, 0.25);
+        }
+
+        .alert-resub {
+            --alert-accent: #c084fc;
+            --alert-border: rgba(192, 132, 252, 0.4);
+            --alert-glow: rgba(192, 132, 252, 0.25);
+        }
+
+        .alert-giftsub {
+            --alert-accent: #00e5ff;
+            --alert-border: rgba(0, 229, 255, 0.4);
+            --alert-glow: rgba(0, 229, 255, 0.25);
+        }
+
+        .alert-giftbomb {
+            --alert-accent: #22d3ee;
+            --alert-border: rgba(34, 211, 238, 0.4);
+            --alert-glow: rgba(34, 211, 238, 0.25);
+        }
+
+        .alert-raid {
+            --alert-accent: #ffd700;
+            --alert-border: rgba(255, 215, 0, 0.4);
+            --alert-glow: rgba(255, 215, 0, 0.25);
+        }
+
+        .alert-cheer {
+            --alert-accent: #ff69b4;
+            --alert-border: rgba(255, 105, 180, 0.4);
+            --alert-glow: rgba(255, 105, 180, 0.25);
+        }
+
+        /* Shine sweep on alert box */
+        .alert-box::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+            animation: alertSweep 1.5s ease 0.4s;
+            border-radius: 24px;
+        }
+
+        @keyframes alertSweep {
+            0% {
+                left: -100%;
+            }
+
+            100% {
+                left: 200%;
+            }
+        }
+
+        /* --- Test Panel (only visible when opened directly in browser) --- */
+        #test-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 99999;
+            background: rgba(0, 0, 0, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 16px;
+            color: #fff;
+            font-family: 'Inter', -apple-system, sans-serif;
+            font-size: 13px;
+            width: 380px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            display: none;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.15) transparent;
+        }
+        #test-panel::-webkit-scrollbar { width: 6px; }
+        #test-panel::-webkit-scrollbar-track { background: transparent; }
+        #test-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+        /* --- Accordion sections --- */
+        #test-panel details {
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.03);
+            overflow: hidden;
+        }
+        #test-panel details[open] {
+            background: rgba(255,255,255,0.05);
+        }
+        #test-panel summary {
+            cursor: pointer;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8be9fd;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+            transition: background 0.15s;
+        }
+        #test-panel summary:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        #test-panel summary::-webkit-details-marker { display: none; }
+        #test-panel summary::before {
+            content: '▶';
+            font-size: 9px;
+            color: rgba(255,255,255,0.4);
+            transition: transform 0.2s;
+        }
+        #test-panel details[open] > summary::before {
+            transform: rotate(90deg);
+        }
+        #test-panel details .section-body {
+            padding: 6px 14px 14px;
+        }
+
+        /* --- Range sliders --- */
+        .nico-range {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.1);
+            outline: none;
+            margin: 6px 0 2px;
+        }
+        .nico-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #8be9fd;
+            cursor: pointer;
+            border: 2px solid rgba(0,0,0,0.3);
+            box-shadow: 0 0 6px rgba(139,233,253,0.4);
+        }
+        .nico-range::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #8be9fd;
+            cursor: pointer;
+            border: 2px solid rgba(0,0,0,0.3);
+        }
+        .range-val {
+            color: #8be9fd;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        /* --- Color pool swatches --- */
+        .pool-swatch {
+            width: 24px; height: 24px;
+            border-radius: 6px;
+            border: 2px solid rgba(255,255,255,0.2);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            position: relative;
+        }
+        .pool-swatch:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 8px rgba(255,255,255,0.3);
+        }
+        .pool-swatch:hover::after {
+            content: '×';
+            position: absolute;
+            top: -2px; right: -2px;
+            font-size: 10px;
+            color: #fff;
+            background: rgba(255,0,0,0.7);
+            border-radius: 50%;
+            width: 12px; height: 12px;
+            display: flex; align-items: center; justify-content: center;
+            line-height: 1;
+        }
+
+        /* --- Color pool tabs --- */
+        .pool-tabs {
+            display: flex;
+            gap: 2px;
+            background: rgba(0,0,0,0.2);
+            padding: 2px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .pool-tab {
+            flex: 1;
+            text-align: center;
+            font-size: 11px;
+            padding: 4px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            color: rgba(255,255,255,0.6);
+            transition: background 0.2s, color 0.2s;
+        }
+        .pool-tab:hover {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+        }
+        .pool-tab.active {
+            background: rgba(255,255,255,0.15);
+            color: #8be9fd;
+            font-weight: bold;
+        }
+
+        #test-panel h3 {
+            margin: 0 0 14px;
+            font-size: 15px;
+            color: #00e5ff;
+        }
+
+        #test-panel label {
+            display: block;
+            margin: 8px 0 3px;
+            color: #aaa;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        #test-panel select,
+        #test-panel input[type="text"],
+        #test-panel input[type="number"] {
+            width: 100%;
+            padding: 6px 10px;
+            border: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 13px;
+        }
+
+        #test-panel button {
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #btn-spawn {
+            background: linear-gradient(135deg, #00e5ff, #0088ff);
+            color: #000;
+        }
+
+        #btn-spawn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(0, 229, 255, 0.3);
+        }
+
+        #btn-single {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.2);
+        }
+
+        #btn-clear {
+            background: rgba(255, 60, 60, 0.2);
+            color: #ff6b6b;
+            border: var(--nico-border-width, 1px) solid rgba(255, 60, 60, 0.3);
+        }
+
+        .panel-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .panel-row>div {
+            flex: 1;
+        }
+
+        #connection-status {
+            padding: 6px 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status-connected {
+            background: rgba(0, 200, 100, 0.2);
+            color: #00e564;
+            border: var(--nico-border-width, 1px) solid rgba(0, 200, 100, 0.3);
+        }
+
+        .status-disconnected {
+            background: rgba(255, 60, 60, 0.2);
+            color: #ff6b6b;
+            border: var(--nico-border-width, 1px) solid rgba(255, 60, 60, 0.3);
+        }
+
+        .status-connecting {
+            background: rgba(255, 200, 0, 0.2);
+            color: #ffc800;
+            border: var(--nico-border-width, 1px) solid rgba(255, 200, 0, 0.3);
+        }
+
+        /* Test panel section divider */
+        .panel-divider {
+            border: none;
+            border-top: var(--nico-border-width, 1px) solid rgba(255, 255, 255, 0.1);
+            margin: 14px 0 8px;
+        }
+
+        .panel-section-title {
+            font-size: 12px;
+            color: #00e5ff;
+            font-weight: 700;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-event {
+            font-size: 11px !important;
+            padding: 7px !important;
+            margin-top: 4px !important;
+        }
+
+        .btn-event-follow {
+            background: rgba(0, 229, 100, 0.15) !important;
+            color: #00e564 !important;
+            border: var(--nico-border-width, 1px) solid rgba(0, 229, 100, 0.3) !important;
+        }
+
+        .btn-event-sub {
+            background: rgba(168, 85, 247, 0.15) !important;
+            color: #a855f7 !important;
+            border: var(--nico-border-width, 1px) solid rgba(168, 85, 247, 0.3) !important;
+        }
+
+        .btn-event-raid {
+            background: rgba(255, 215, 0, 0.15) !important;
+            color: #ffd700 !important;
+            border: var(--nico-border-width, 1px) solid rgba(255, 215, 0, 0.3) !important;
+        }
+
+        .btn-event-cheer {
+            background: rgba(255, 105, 180, 0.15) !important;
+            color: #ff69b4 !important;
+            border: var(--nico-border-width, 1px) solid rgba(255, 105, 180, 0.3) !important;
+        }
+
+        .btn-event-gift {
+            background: rgba(0, 229, 255, 0.15) !important;
+            color: #00e5ff !important;
+            border: var(--nico-border-width, 1px) solid rgba(0, 229, 255, 0.3) !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Overlay Container -->
+    <div id="niconico-container"></div>
+
+    <!-- Centered Alert Container -->
+    <div id="alert-container"></div>
+
+    <!-- SVG Filters -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden;">
+        <defs>
+            <filter id="bubble-rounded-shadow">
+                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.4)" />
+            </filter>
+        </defs>
+    </svg>
+
+    <!-- Test Panel (only shows when opening file directly in browser, not in OBS) -->
+    <div id="test-panel">
+        <h3>🎌 NicoNico Overlay — Test Panel</h3>
+        <div id="connection-status" class="status-disconnected">⬤ Disconnected from Streamer.bot</div>
+
+        <!-- === CORE SETTINGS (open by default) === -->
+        <details open>
+            <summary>🎮 Core Settings</summary>
+            <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Movement</label>
+                        <select id="ctrl-movement">
+                            <option value="scroll">Scroll (Right → Left)</option>
+                            <option value="plaster">Plaster / Stamp</option>
+                            <option value="float">Float Upwards</option>
+                            <option value="zoom">Zoom-In Popup</option>
+                            <option value="swing">Pendulum Drop &amp; Swing</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Bubble Style</label>
+                        <select id="ctrl-bubble">
+                            <option value="none">None (classic)</option>
+                            <option value="glass">Frosted Glass</option>
+                            <option value="neumorphic">Neumorphic</option>
+                            <option value="gradient-edge">Gradient Edge</option>
+                            <option value="editorial">Editorial Brutalist</option>
+                            <option value="rounded">Rounded Pill</option>
+                            <option value="speech">Speech Bubble</option>
+                            <option value="glow">Neon Glow</option>
+                            <option value="holo">Holographic</option>
+                            <option value="cyber">Cyberpunk Glitch</option>
+                            <option value="sticky">Sticky Note</option>
+                            <option value="terminal">Retro Terminal</option>
+                            <option value="vapor">Vaporwave</option>
+                            <option value="rpg">Fantasy RPG</option>
+                            <option value="cat">Cute Cat</option>
+                            <option value="frog">Cute Frog</option>
+                            <option value="worm">Cute Worm</option>
+                            <option value="slime">Cute Slime</option>
+                            <option value="ghost">Spooky Ghost</option>
+                            <option value="floral">Elegant Floral</option>
+                            <option value="polka">Chic Polka</option>
+                            <option value="lace">Elegant Lace</option>
+                            <option value="tartan">Chic Tartan</option>
+                            <option value="milk">Kawaii Milk</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Animation</label>
+                        <select id="ctrl-anim">
+                            <option value="none">None</option>
+                            <option value="letter">Letter by Letter</option>
+                            <option value="word">Word by Word</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div>
+                        <label>Speed <span class="range-val" id="speed-val">8</span>s</label>
+                        <input type="range" id="ctrl-speed" value="8" min="3" max="20" step="0.5" class="nico-range">
+                    </div>
+                    <div>
+                        <label>Font Size <span class="range-val" id="fontsize-val">32</span>px</label>
+                        <input type="range" id="ctrl-fontsize" value="32" min="12" max="72" step="1" class="nico-range">
+                    </div>
+                    <div>
+                        <label>Username Layout</label>
+                        <select id="ctrl-username">
+                            <option value="hidden">Hidden</option>
+                            <option value="inline">Inline Prefix</option>
+                            <option value="badge-top">Badge (Top Offset)</option>
+                            <option value="badge-bottom">Badge (Bottom Offset)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Username Theme</label>
+                        <select id="ctrl-user-theme">
+                            <option value="match">Match Bubble</option>
+                            <option value="dark">Dark Badge</option>
+                            <option value="light">Light Badge</option>
+                            <option value="clear">Transparent</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Username Color</label>
+                        <select id="ctrl-user-color">
+                            <option value="twitch">Twitch/Custom Color</option>
+                            <option value="pool">Random from Text Pool</option>
+                            <option value="white">Always White</option>
+                            <option value="black">Always Black</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Username Size <span class="range-val" id="usersize-val">0.7</span>em</label>
+                        <input type="range" id="ctrl-usersize" value="0.7" min="0.4" max="1.5" step="0.05" class="nico-range">
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <!-- === STYLING === -->
+        <details>
+            <summary>🎨 Styling &amp; Colors</summary>
+            <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Shadow</label>
+                        <select id="ctrl-shadow">
+                            <option value="heavy" selected>Heavy</option>
+                            <option value="light">Light</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Border <span class="range-val" id="border-val">1</span>px</label>
+                        <input type="range" id="ctrl-border-thickness" value="1" min="0" max="10" step="1" class="nico-range">
+                    </div>
+                    <div>
+                        <label>Opacity <span class="range-val" id="opacity-val">100</span>%</label>
+                        <input type="range" id="ctrl-opacity" value="1.0" min="0.1" max="1.0" step="0.05" class="nico-range">
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div>
+                        <label>Primary Color</label>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <input type="color" id="ctrl-primary-picker" value="#ffffff" style="width:36px;height:28px;padding:0;border:1px solid rgba(255,255,255,0.2);border-radius:6px;background:transparent;cursor:pointer;">
+                            <input type="text" id="ctrl-primary" placeholder="empty = theme default" style="flex:1;">
+                        </div>
+                    </div>
+                    <div>
+                        <label>Accent Color</label>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <input type="color" id="ctrl-accent-picker" value="#00e5ff" style="width:36px;height:28px;padding:0;border:1px solid rgba(255,255,255,0.2);border-radius:6px;background:transparent;cursor:pointer;">
+                            <input type="text" id="ctrl-accent" placeholder="empty = theme default" style="flex:1;">
+                        </div>
+                    </div>
+                    <div>
+                        <label>Text Color</label>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <input type="color" id="ctrl-text-picker" value="#ffffff" style="width:36px;height:28px;padding:0;border:1px solid rgba(255,255,255,0.2);border-radius:6px;background:transparent;cursor:pointer;">
+                            <input type="text" id="ctrl-text" placeholder="empty = theme default" style="flex:1;">
+                        </div>
+                    </div>
+                </div>
+                <label>Color Pools <span style="font-size:10px;color:#666;text-transform:none;letter-spacing:0;">each message picks randomly from appropriate pool (or general)</span></label>
+                <div class="pool-tabs" id="pool-tabs-container">
+                    <div class="pool-tab active" data-target="colorPool">General</div>
+                    <div class="pool-tab" data-target="colorPoolPrimary">Primary</div>
+                    <div class="pool-tab" data-target="colorPoolAccent">Accent</div>
+                    <div class="pool-tab" data-target="colorPoolText">Text</div>
+                </div>
+                <!-- Hidden input to store current selected pool target -->
+                <input type="hidden" id="ctrl-pool-target" value="colorPool">
+
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                    <input type="color" id="ctrl-pool-picker" value="#ff00ff" style="width:36px;height:28px;padding:0;border:1px solid rgba(255,255,255,0.2);border-radius:6px;background:transparent;cursor:pointer;">
+                    <button id="btn-add-pool-color" style="padding:4px 10px;font-size:11px;margin:0;">+ Add</button>
+                    <button id="btn-clear-pool" style="padding:4px 10px;font-size:11px;margin:0;">🗑️ Clear</button>
+                </div>
+                <div id="color-pool-swatches" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;"></div>
+                <input type="hidden" id="ctrl-colorpool">
+                <input type="hidden" id="ctrl-colorpoolprimary">
+                <input type="hidden" id="ctrl-colorpoolaccent">
+                <input type="hidden" id="ctrl-colorpooltext">
+                <label>Font URL (Google Fonts)</label>
+                <input type="text" id="ctrl-fonturl" placeholder="https://fonts.googleapis.com/css2?family=...">
+            </div>
+        </details>
+
+        <!-- === EVENTS === -->
+        <details>
+            <summary>⚡ Events</summary>
+            <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Event Display Mode</label>
+                        <select id="ctrl-eventmode">
+                            <option value="both">Both (scroll + alert)</option>
+                            <option value="scroll">Scroll only</option>
+                            <option value="alert">Centered alert only</option>
+                            <option value="off">Off</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Alert Duration (sec)</label>
+                        <input type="number" id="ctrl-alertduration" value="5" min="2" max="15" step="0.5">
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div><button class="btn-event btn-event-follow" id="btn-evt-follow">👤 Follow</button></div>
+                    <div><button class="btn-event btn-event-sub" id="btn-evt-sub">⭐ Sub</button></div>
+                    <div><button class="btn-event btn-event-raid" id="btn-evt-raid">⚔️ Raid</button></div>
+                </div>
+                <div class="panel-row">
+                    <div><button class="btn-event btn-event-cheer" id="btn-evt-cheer">💎 Cheer</button></div>
+                    <div><button class="btn-event btn-event-gift" id="btn-evt-gift">🎁 Gift Sub</button></div>
+                    <div><button class="btn-event btn-event-gift" id="btn-evt-giftbomb">💣 Gift Bomb</button></div>
+                </div>
+            </div>
+        </details>
+
+        <!-- === PROFILES === -->
+        <details>
+            <summary>💾 Profiles</summary>
+            <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Load Profile</label>
+                        <select id="ctrl-profile-list">
+                            <option value="">— select —</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Save As</label>
+                        <input type="text" id="ctrl-profile-name" placeholder="My Setup">
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div><button id="btn-profile-save">💾 Save</button></div>
+                    <div><button id="btn-profile-load">📂 Load</button></div>
+                    <div><button id="btn-profile-delete">🗑️ Delete</button></div>
+                </div>
+                <div class="panel-row">
+                    <div><button id="btn-profile-export">📤 Export All</button></div>
+                    <div><button id="btn-profile-import">📥 Import</button></div>
+                    <div><button id="btn-reset-defaults">🔄 Reset</button></div>
+                </div>
+                <input type="file" id="profile-import-file" accept=".json" style="display:none;">
+                <div id="profile-status" style="font-size:11px;color:#8be9fd;margin-top:4px;min-height:16px;"></div>
+            </div>
+        </details>
+
+        <!-- === CUSTOM CSS === -->
+        <details>
+            <summary>🔧 Custom CSS</summary>
+            <div class="section-body">
+                <div class="panel-row" style="margin-bottom:6px;">
+                    <div><button id="btn-load-theme-css">🎨 Edit Current Theme</button></div>
+                </div>
+                <textarea id="ctrl-custom-css" rows="6" placeholder="/* Paste custom CSS here, or click 'Edit Current Theme' to load the selected theme's CSS */" style="width:100%;font-family:monospace;font-size:11px;background:rgba(255,255,255,0.05);color:#f8f8f2;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px;resize:vertical;"></textarea>
+                <div class="panel-row" style="margin-top:6px;">
+                    <div><button id="btn-apply-css">✅ Apply</button></div>
+                    <div><button id="btn-upload-css">📁 Load .css</button></div>
+                    <div><button id="btn-clear-css">🗑️ Clear</button></div>
+                </div>
+                <input type="file" id="css-upload-file" accept=".css,.txt" style="display:none;">
+            </div>
+        </details>
+
+        <!-- === TEST MESSAGES (always visible) === -->
+        <div style="margin-top:8px;">
+            <label>Custom Message</label>
+            <input type="text" id="ctrl-message" placeholder="Type a message to send...">
+            <div class="panel-row" style="margin-top:6px;">
+                <div><button id="btn-spawn">🚀 Spawn Batch</button></div>
+                <div><button id="btn-single">💬 Send</button></div>
+                <div><button id="btn-clear">🗑️ Clear All</button></div>
+            </div>
+    </div>
+
+
+    <script>
+        // ============================================================
+        // NicoNico Chat Overlay — Streamer.bot WebSocket Edition
+        // ============================================================
+
+        // --- Configuration ---
+        const config = {
+            // Streamer.bot WebSocket connection
+            sbHost: '127.0.0.1',
+            sbPort: 8080,
+            sbEndpoint: '/',
+
+            // Overlay settings
+            scrollSpeed: 8,
+            fontSize: 32,
+            fontFamily: 'Arial Black',
+            fontUrl: '',
+            textColor: '',
+            textShadow: 'heavy',
+            borderThickness: 1,
+            opacity: 1.0,
+            colorPool: '',
+            colorPoolPrimary: '',
+            colorPoolAccent: '',
+            colorPoolText: '',
+            movementMode: 'scroll',  // 'scroll', 'plaster', 'float', 'zoom', 'swing'
+            animationMode: 'none',   // 'none', 'letter', 'word'
+            bubbleStyle: 'none',     // 'none', 'glass', 'neumorphic', 'gradient-edge', 'editorial', 'rounded', 'speech', 'glow', 'holo', 'cyber', 'sticky', 'terminal', 'vapor', 'rpg', 'cat', 'frog', 'worm', 'slime', 'ghost'
+            maxMessages: 50,
+            showUsername: 'inline',
+            letterDelay: 40,
+            testCommand: '!testnico',
+            laneCount: 0,
+
+            // Event settings
+            eventMode: 'both',       // 'scroll', 'alert', 'both', 'off'
+            alertDuration: 5,        // seconds
+        };
+
+        // --- Parse URL params for config overrides ---
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('speed')) config.scrollSpeed = parseFloat(urlParams.get('speed'));
+        if (urlParams.get('fontSize')) config.fontSize = parseInt(urlParams.get('fontSize'));
+        if (urlParams.get('font')) config.fontFamily = urlParams.get('font');
+        if (urlParams.get('fontUrl')) config.fontUrl = urlParams.get('fontUrl');
+        if (urlParams.get('color')) config.textColor = '#' + urlParams.get('color');
+        if (urlParams.get('primary')) config.primaryColor = '#' + urlParams.get('primary');
+        if (urlParams.get('accent')) config.accentColor = '#' + urlParams.get('accent');
+        if (urlParams.get('shadow')) config.textShadow = urlParams.get('shadow');
+        if (urlParams.get('border')) config.borderThickness = parseFloat(urlParams.get('border'));
+        if (urlParams.get('opacity')) config.opacity = parseFloat(urlParams.get('opacity'));
+        if (urlParams.get('movement')) config.movementMode = urlParams.get('movement');
+        if (urlParams.get('animation')) config.animationMode = urlParams.get('animation');
+        if (urlParams.get('bubble')) config.bubbleStyle = urlParams.get('bubble');
+        if (urlParams.get('max')) config.maxMessages = parseInt(urlParams.get('max'));
+        if (urlParams.get('username')) {
+            const up = urlParams.get('username');
+            config.showUsername = (up === 'yes' || up === 'true') ? 'inline' : (up === 'no' || up === 'false') ? 'hidden' : up;
+        }
+        if (urlParams.get('delay')) config.letterDelay = parseInt(urlParams.get('delay'));
+        if (urlParams.get('host')) config.sbHost = urlParams.get('host');
+        if (urlParams.get('port')) config.sbPort = parseInt(urlParams.get('port'));
+        if (urlParams.get('eventMode')) config.eventMode = urlParams.get('eventMode');
+        if (urlParams.get('alertDuration')) config.alertDuration = parseFloat(urlParams.get('alertDuration'));
+
+        // --- Font Loading ---
+        let fontLoaded = false;
+        function loadFont() {
+            if (fontLoaded) return;
+            // Priority: fontUrl > fontFamily (auto Google Fonts lookup)
+            if (config.fontUrl) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = config.fontUrl;
+                document.head.appendChild(link);
+                fontLoaded = true;
+            } else if (config.fontFamily && config.fontFamily !== 'Arial Black') {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(config.fontFamily)}:wght@700;900&display=swap`;
+                document.head.appendChild(link);
+                fontLoaded = true;
+            }
+        }
+
+        // --- Lane Management ---
+        let lanes = [];
+        const LANE_PADDING = 8;
+
+        function initLanes() {
+            const h = window.innerHeight;
+            const laneH = config.fontSize * 1.6;
+            config.laneCount = Math.floor(h / (laneH + LANE_PADDING));
+            lanes = new Array(config.laneCount).fill(0);
+        }
+
+        function getAvailableLane() {
+            const now = Date.now();
+            let freeLanes = [];
+            for (let i = 0; i < lanes.length; i++) {
+                if (lanes[i] <= now) freeLanes.push(i);
+            }
+            if (freeLanes.length === 0) {
+                let earliest = 0;
+                for (let i = 1; i < lanes.length; i++) {
+                    if (lanes[i] < lanes[earliest]) earliest = i;
+                }
+                return earliest;
+            }
+            return freeLanes[Math.floor(Math.random() * freeLanes.length)];
+        }
+
+        function reserveLane(idx, durationMs) {
+            lanes[idx] = Date.now() + Math.min(durationMs * 0.35, 3000);
+        }
+
+        // --- Active message tracking ---
+        let activeMessages = 0;
+
+        // --- Spawn a message ---
+        function spawnMessage(text, username, userColor, extraClasses) {
+            if (activeMessages >= config.maxMessages) return;
+            const container = document.getElementById('niconico-container');
+            if (!container) return;
+
+            const msg = document.createElement('div');
+            msg.classList.add('nico-msg', `move-${config.movementMode}`, `shadow-${config.textShadow}`, `bubble-${config.bubbleStyle}`);
+            if (extraClasses) extraClasses.forEach(c => msg.classList.add(c));
+
+            const speed = config.scrollSpeed + (Math.random() * 2 - 1);
+            msg.style.setProperty('--nico-speed', `${speed}s`);
+            msg.style.setProperty('--nico-font-size', `${config.fontSize}px`);
+            msg.style.setProperty('--nico-font', config.fontFamily);
+            msg.style.setProperty('--nico-border-width', `${config.borderThickness}px`);
+            msg.style.opacity = config.opacity;
+
+            // Strategy: pick from specific pool -> fall back to general pool -> fall back to static config color
+            const getPoolColor = (specificPoolKey, staticColor) => {
+                let poolStr = config[specificPoolKey];
+                if (!poolStr && config.colorPool) poolStr = config.colorPool;
+
+                if (poolStr) {
+                    const pool = poolStr.split(',').map(c => c.trim()).filter(c => c);
+                    if (pool.length > 0) {
+                        return pool[Math.floor(Math.random() * pool.length)];
+                    }
+                }
+                return staticColor;
+            };
+
+            const pickPrimary = getPoolColor('colorPoolPrimary', config.primaryColor);
+            if (pickPrimary) msg.style.setProperty('--nico-primary', pickPrimary);
+
+            const pickAccent = getPoolColor('colorPoolAccent', config.accentColor);
+            if (pickAccent) msg.style.setProperty('--nico-accent', pickAccent);
+
+            const pickText = getPoolColor('colorPoolText', config.textColor);
+            msg.style.setProperty('--nico-color', userColor || pickText || '#FFFFFF');
+
+            if (config.movementMode === 'scroll') {
+                const lane = getAvailableLane();
+                const laneH = config.fontSize * 1.6;
+                msg.style.top = `${lane * (laneH + LANE_PADDING) + 10}px`;
+                reserveLane(lane, speed * 1000);
+            } else if (config.movementMode === 'plaster') {
+                msg.style.top = `${Math.random() * 70 + 10}vh`;
+                msg.style.left = `${Math.random() * 60 + 10}vw`;
+            } else if (config.movementMode === 'float') {
+                msg.style.top = `0px`;
+                msg.style.left = `${Math.random() * 80 + 10}vw`;
+            } else if (config.movementMode === 'zoom' || config.movementMode === 'swing') {
+                msg.style.top = `${Math.random() * 60 + 10}vh`;
+                msg.style.left = `${Math.random() * 60 + 10}vw`;
+            }
+
+            const inner = document.createElement('span');
+            inner.classList.add('nico-inner');
+            
+            let badgeSpan = null;
+            if (config.showUsername !== 'hidden' && username) {
+                msg.classList.add(`user-layout-${config.showUsername}`);
+                msg.classList.add(`user-theme-${config.userTheme}`);
+                
+                const uSpan = document.createElement('span');
+                uSpan.classList.add('nico-username');
+                uSpan.textContent = config.showUsername === 'inline' ? username + ':' : username;
+                
+                let uColor = '#FFFFFF';
+                if (config.userColorSource === 'twitch' && userColor) uColor = userColor;
+                else if (config.userColorSource === 'pool') uColor = getPoolColor('colorPoolText', config.textColor) || '#FFFFFF';
+                else if (config.userColorSource === 'black') uColor = '#000000';
+                else if (config.userTheme === 'light' && config.userColorSource === 'twitch') uColor = userColor || '#111111';
+                
+                uSpan.style.setProperty('--user-color', uColor);
+                if (config.userTheme !== 'light' && config.userTheme !== 'dark' && config.userTheme !== 'clear' || config.userColorSource === 'twitch') {
+                     uSpan.style.color = uColor;
+                }
+                
+                uSpan.style.fontSize = `${config.userSize}em`;
+                
+                if (config.showUsername === 'inline') {
+                    inner.appendChild(uSpan);
+                } else {
+                    badgeSpan = uSpan;
+                }
+            }
+
+            const textContainer = document.createElement('span');
+            textContainer.classList.add('nico-text-content');
+
+            if (config.animationMode === 'letter') {
+                text.split('').forEach((ch, i) => {
+                    const s = document.createElement('span');
+                    s.classList.add('nico-char');
+                    s.textContent = ch === ' ' ? '\u00A0' : ch;
+                    s.style.animationDelay = `${i * config.letterDelay}ms`;
+                    textContainer.appendChild(s);
+                });
+            } else if (config.animationMode === 'word') {
+                text.split(' ').forEach((word, i, arr) => {
+                    const s = document.createElement('span');
+                    s.classList.add('nico-char');
+                    s.textContent = word;
+                    s.style.animationDelay = `${i * config.letterDelay * 3}ms`;
+                    textContainer.appendChild(s);
+                    if (i < arr.length - 1) {
+                        const sp = document.createElement('span');
+                        sp.classList.add('nico-char');
+                        sp.textContent = '\u00A0';
+                        sp.style.animationDelay = `${i * config.letterDelay * 3}ms`;
+                        textContainer.appendChild(sp);
+                    }
+                });
+            } else {
+                textContainer.textContent = text;
+            }
+
+            inner.appendChild(textContainer);
+            msg.appendChild(inner);
+            if (badgeSpan) msg.appendChild(badgeSpan);
+            container.appendChild(msg);
+            activeMessages++;
+
+            setTimeout(() => {
+                if (msg.parentNode) msg.parentNode.removeChild(msg);
+                activeMessages--;
+            }, (speed + 0.5) * 1000);
+        }
+
+        // ============================================================
+        // CENTERED ALERT SYSTEM
+        // ============================================================
+        const alertQueue = [];
+        let alertActive = false;
+
+        const EVENT_META = {
+            follow: { icon: '👤', title: 'NEW FOLLOWER', color: '#00e564' },
+            sub: { icon: '⭐', title: 'NEW SUB', color: '#a855f7' },
+            resub: { icon: '🌟', title: 'RESUB', color: '#c084fc' },
+            giftsub: { icon: '🎁', title: 'GIFT SUB', color: '#00e5ff' },
+            giftbomb: { icon: '💣', title: 'GIFT BOMB', color: '#22d3ee' },
+            raid: { icon: '⚔️', title: 'RAID', color: '#ffd700' },
+            cheer: { icon: '💎', title: 'CHEER', color: '#ff69b4' },
+        };
+
+        function showCenteredAlert(eventType, message, subtitle) {
+            alertQueue.push({ eventType, message, subtitle });
+            if (!alertActive) processAlertQueue();
+        }
+
+        function processAlertQueue() {
+            if (alertQueue.length === 0) { alertActive = false; return; }
+            alertActive = true;
+            const { eventType, message, subtitle } = alertQueue.shift();
+            const meta = EVENT_META[eventType] || EVENT_META.follow;
+
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.classList.add('event-alert', `alert-${eventType}`);
+
+            alert.innerHTML = `
+                <div class="alert-box">
+                    <div class="alert-icon">${meta.icon}</div>
+                    <div class="alert-title">${meta.title}</div>
+                    <div class="alert-message">${message}</div>
+                    ${subtitle ? `<div class="alert-sub">${subtitle}</div>` : ''}
+                </div>
+            `;
+
+            container.appendChild(alert);
+
+            // Hold, then fade out
+            setTimeout(() => {
+                alert.classList.add('alert-exit');
+                setTimeout(() => {
+                    if (alert.parentNode) alert.parentNode.removeChild(alert);
+                    processAlertQueue();
+                }, 500);
+            }, config.alertDuration * 1000);
+        }
+
+        // --- Unified Stream Event Handler ---
+        function handleStreamEvent(eventType, message, subtitle, scrollColor) {
+            if (config.eventMode === 'off') return;
+
+            if (config.eventMode === 'scroll' || config.eventMode === 'both') {
+                const meta = EVENT_META[eventType] || EVENT_META.follow;
+                const scrollText = `${meta.icon} ${message}`;
+                spawnMessage(scrollText, null, scrollColor || meta.color, ['nico-event', `event-${eventType}`]);
+            }
+
+            if (config.eventMode === 'alert' || config.eventMode === 'both') {
+                showCenteredAlert(eventType, message, subtitle);
+            }
+        }
+
+        // --- Test Messages ---
+        const TEST_USERNAMES = [
+            'NicoFan42', 'StreamLord', 'ChatGoblin', 'PixelWitch',
+            'TurboViewer', 'NightOwl99', 'GlitchKing', 'CozyStreamer',
+            'WaveRider', 'MoonBeam', 'StarDust', 'ThunderCat'
+        ];
+        const TEST_MESSAGES = [
+            'wwwwwwwwww', 'ktkr!!!', 'sugoi!!!!', '888888888', 'GG!!!!',
+            'lets gooooo', 'this is amazing', 'lol nice one', 'POG POG POG',
+            'hype train!!!', 'wow that was insane', 'hello from the chat!',
+            'first time here!', 'bruh moment', 'EZ Clap', 'sheeeesh',
+            'W stream W chat', 'KEKW', 'monkaS', 'actual god gamer'
+        ];
+        const TEST_COLORS = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD',
+            '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9', '#F0B27A', '#82E0AA',
+            '#FF69B4', '#00CED1', '#FFD700', '#7B68EE'
+        ];
+
+        function spawnTestMessages(count) {
+            count = count || 8;
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    const u = TEST_USERNAMES[Math.floor(Math.random() * TEST_USERNAMES.length)];
+                    const t = TEST_MESSAGES[Math.floor(Math.random() * TEST_MESSAGES.length)];
+                    const c = TEST_COLORS[Math.floor(Math.random() * TEST_COLORS.length)];
+                    spawnMessage(t, u, c);
+                }, i * 300);
+            }
+        }
+
+        function randomUser() {
+            return TEST_USERNAMES[Math.floor(Math.random() * TEST_USERNAMES.length)];
+        }
+
+        // --- Streamer.bot WebSocket Connection ---
+        let sbClient = null;
+
+        async function connectToStreamerBot() {
+            const statusEl = document.getElementById('connection-status');
+
+            if (typeof StreamerbotClient === 'undefined') {
+                console.warn('StreamerbotClient not loaded — running in offline/test mode');
+                if (statusEl) {
+                    statusEl.textContent = '⬤ Offline mode (CDN not loaded)';
+                    statusEl.className = 'status-disconnected';
+                }
+                return;
+            }
+
+            if (statusEl) {
+                statusEl.textContent = '⬤ Connecting to Streamer.bot...';
+                statusEl.className = 'status-connecting';
+            }
+
+            try {
+                sbClient = new StreamerbotClient({
+                    host: config.sbHost,
+                    port: config.sbPort,
+                    endpoint: config.sbEndpoint,
+                    subscribe: {
+                        'Twitch': [
+                            'ChatMessage',
+                            'Follow',
+                            'Sub',
+                            'ReSub',
+                            'GiftSub',
+                            'GiftBomb',
+                            'Raid',
+                            'Cheer'
+                        ]
+                    },
+                    onConnect: () => {
+                        console.log('✅ Connected to Streamer.bot');
+                        if (statusEl) {
+                            statusEl.textContent = `⬤ Connected (${config.sbHost}:${config.sbPort})`;
+                            statusEl.className = 'status-connected';
+                        }
+                    },
+                    onDisconnect: () => {
+                        console.log('❌ Disconnected from Streamer.bot');
+                        if (statusEl) {
+                            statusEl.textContent = '⬤ Disconnected — will retry...';
+                            statusEl.className = 'status-disconnected';
+                        }
+                    },
+                    onError: (err) => {
+                        console.error('Streamer.bot WS error:', err);
+                        if (statusEl) {
+                            statusEl.textContent = '⬤ Connection error — retrying...';
+                            statusEl.className = 'status-disconnected';
+                        }
+                    },
+                    retries: -1
+                });
+
+                // --- Chat Messages ---
+                sbClient.on('Twitch.ChatMessage', (payload) => {
+                    const data = payload.data;
+                    if (!data) return;
+                    const text = data.message?.message || data.text || '';
+                    const username = data.message?.displayName || data.user?.name || 'Anon';
+                    const userColor = data.message?.color || data.user?.color || null;
+
+                    if (text.trim().toLowerCase() === config.testCommand.toLowerCase()) {
+                        spawnTestMessages(8);
+                        return;
+                    }
+                    spawnMessage(text, username, userColor);
+                });
+
+                // --- Follow ---
+                sbClient.on('Twitch.Follow', (payload) => {
+                    const d = payload.data;
+                    const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
+                    handleStreamEvent('follow', name, 'just followed!');
+                });
+
+                // --- Sub ---
+                sbClient.on('Twitch.Sub', (payload) => {
+                    const d = payload.data;
+                    const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
+                    const tier = d?.tier || d?.sub_tier || '1000';
+                    const tierName = tier === '2000' ? 'Tier 2' : tier === '3000' ? 'Tier 3' : 'Tier 1';
+                    handleStreamEvent('sub', name, `subscribed at ${tierName}!`);
+                });
+
+                // --- ReSub ---
+                sbClient.on('Twitch.ReSub', (payload) => {
+                    const d = payload.data;
+                    const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
+                    const months = d?.cumulativeMonths || d?.cumulative_months || '?';
+                    const tier = d?.tier || d?.sub_tier || '1000';
+                    const tierName = tier === '2000' ? 'Tier 2' : tier === '3000' ? 'Tier 3' : 'Tier 1';
+                    handleStreamEvent('resub', name, `resubbed for ${months} months (${tierName})!`);
+                });
+
+                // --- Gift Sub ---
+                sbClient.on('Twitch.GiftSub', (payload) => {
+                    const d = payload.data;
+                    const gifter = d?.user_name || d?.userName || d?.user?.name || 'Someone';
+                    const recipient = d?.recipient_user_name || d?.recipientUserName || 'a viewer';
+                    handleStreamEvent('giftsub', `${gifter} → ${recipient}`, 'gifted a sub!');
+                });
+
+                // --- Gift Bomb ---
+                sbClient.on('Twitch.GiftBomb', (payload) => {
+                    const d = payload.data;
+                    const gifter = d?.user_name || d?.userName || d?.user?.name || 'Someone';
+                    const count = d?.gifts || d?.total_gifts || d?.totalGifts || '?';
+                    const isAnon = d?.isAnonymous || d?.is_anonymous || false;
+                    const name = isAnon ? 'Anonymous' : gifter;
+                    handleStreamEvent('giftbomb', `${name} × ${count} subs!`, 'gift bomb!');
+                });
+
+                // --- Raid ---
+                sbClient.on('Twitch.Raid', (payload) => {
+                    const d = payload.data;
+                    const from = d?.from_broadcaster_user_name || d?.fromBroadcasterUserName || d?.user?.name || 'Someone';
+                    const viewers = d?.viewers || d?.viewer_count || '?';
+                    handleStreamEvent('raid', `${from} with ${viewers} viewers!`, 'INCOMING RAID');
+                });
+
+                // --- Cheer ---
+                sbClient.on('Twitch.Cheer', (payload) => {
+                    const d = payload.data;
+                    const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
+                    const bits = d?.bits || d?.bit_count || '?';
+                    const msg = d?.message?.message || d?.chat_message || '';
+                    const sub = msg ? `"${msg}"` : '';
+                    handleStreamEvent('cheer', `${name} cheered ${bits} bits!`, sub);
+                });
+
+            } catch (err) {
+                console.error('Failed to initialize Streamer.bot client:', err);
+                if (statusEl) {
+                    statusEl.textContent = '⬤ Failed to connect';
+                    statusEl.className = 'status-disconnected';
+                }
+            }
+        }
+
+        // --- Detect if running in OBS or standalone browser ---
+        function isOBS() {
+            return navigator.userAgent.includes('OBS') ||
+                window.obsstudio !== undefined ||
+                urlParams.get('obs') === 'true';
+        }
+
+        // --- Apply config from test panel controls ---
+        function applyPanelConfig() {
+            const panel = document.getElementById('test-panel');
+            if (!panel || panel.style.display === 'none') return;
+
+            config.movementMode = document.getElementById('ctrl-movement').value;
+            config.bubbleStyle = document.getElementById('ctrl-bubble').value;
+            config.animationMode = document.getElementById('ctrl-anim').value;
+            config.textShadow = document.getElementById('ctrl-shadow').value;
+            const bThick = document.getElementById('ctrl-border-thickness');
+            if (bThick) config.borderThickness = parseFloat(bThick.value);
+            const opac = document.getElementById('ctrl-opacity');
+            if (opac) config.opacity = parseFloat(opac.value);
+            config.scrollSpeed = parseFloat(document.getElementById('ctrl-speed').value);
+            config.fontSize = parseInt(document.getElementById('ctrl-fontsize').value);
+            config.showUsername = document.getElementById('ctrl-username').value;
+            const utheme = document.getElementById('ctrl-user-theme');
+            if (utheme) config.userTheme = utheme.value;
+            const ucolor = document.getElementById('ctrl-user-color');
+            if (ucolor) config.userColorSource = ucolor.value;
+            const usize = document.getElementById('ctrl-usersize');
+            if (usize) config.userSize = parseFloat(usize.value);
+            config.eventMode = document.getElementById('ctrl-eventmode').value;
+            config.alertDuration = parseFloat(document.getElementById('ctrl-alertduration').value);
+
+            const pmId = document.getElementById('ctrl-primary');
+            if (pmId && pmId.value) config.primaryColor = pmId.value;
+            else config.primaryColor = '';
+
+            const acId = document.getElementById('ctrl-accent');
+            if (acId && acId.value) config.accentColor = acId.value;
+            else config.accentColor = '';
+
+            // Text Color
+            const tcId = document.getElementById('ctrl-text');
+            if (tcId && tcId.value) config.textColor = tcId.value;
+            else config.textColor = '';
+
+            // Color pools
+            ['colorpool', 'colorpoolprimary', 'colorpoolaccent', 'colorpooltext'].forEach(key => {
+                const el = document.getElementById(`ctrl-${key}`);
+                if (el) {
+                    let configKey = key === 'colorpool' ? 'colorPool' : 'colorPool' + key.slice(9).charAt(0).toUpperCase() + key.slice(10);
+                    config[configKey] = el.value.trim();
+                }
+            });
+
+            // Custom font URL
+            const fontUrlVal = document.getElementById('ctrl-fonturl').value.trim();
+            if (fontUrlVal && fontUrlVal !== config.fontUrl) {
+                config.fontUrl = fontUrlVal;
+                fontLoaded = false;
+                loadFont();
+            }
+
+            initLanes();
+            saveConfigToStorage();
+        }
+
+        // --- Default config snapshot for reset ---
+        const DEFAULT_CONFIG = {
+            scrollSpeed: 8, fontSize: 32, fontFamily: 'Arial Black', fontUrl: '',
+            textColor: '', textShadow: 'heavy', borderThickness: 1, opacity: 1.0,
+            movementMode: 'scroll', animationMode: 'none', bubbleStyle: 'none',
+            showUsername: 'inline', eventMode: 'both', alertDuration: 5,
+            primaryColor: '', accentColor: '', colorPool: '',
+            colorPoolPrimary: '', colorPoolAccent: '', colorPoolText: ''
+        };
+
+        function resetToDefaults() {
+            PERSIST_KEYS.forEach(k => { if (DEFAULT_CONFIG[k] !== undefined) config[k] = DEFAULT_CONFIG[k]; });
+            config.primaryColor = '';
+            config.accentColor = '';
+            syncPanelFromConfig();
+            saveConfigToStorage();
+            // Clear custom CSS
+            const cssTag = document.getElementById('injected-custom-css');
+            if (cssTag) cssTag.textContent = '';
+            const cssArea = document.getElementById('ctrl-custom-css');
+            if (cssArea) cssArea.value = '';
+            try { localStorage.removeItem('niconico-custom-css'); } catch(e) {}
+        }
+
+        // --- Export all profiles as JSON download ---
+        function exportProfiles() {
+            const data = {
+                profiles: getProfiles(),
+                themePresets: getThemePresets(),
+                currentConfig: getSerializableConfig()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'niconico-profiles.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- Import profiles from JSON file ---
+        function importProfiles(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.profiles) {
+                        const existing = getProfiles();
+                        Object.assign(existing, data.profiles);
+                        localStorage.setItem(PROFILES_KEY, JSON.stringify(existing));
+                    }
+                    if (data.themePresets) {
+                        const existing = getThemePresets();
+                        Object.assign(existing, data.themePresets);
+                        localStorage.setItem(THEME_PRESETS_KEY, JSON.stringify(existing));
+                    }
+                    refreshProfileDropdown();
+                    showProfileStatus(`✅ Imported ${Object.keys(data.profiles || {}).length} profile(s)`);
+                } catch (err) {
+                    showProfileStatus('⚠️ Invalid JSON file');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Custom CSS injection ---
+        const CUSTOM_CSS_KEY = 'niconico-custom-css';
+
+        function applyCustomCSS(cssText) {
+            let tag = document.getElementById('injected-custom-css');
+            if (!tag) {
+                tag = document.createElement('style');
+                tag.id = 'injected-custom-css';
+                document.head.appendChild(tag);
+            }
+            tag.textContent = cssText;
+            try { localStorage.setItem(CUSTOM_CSS_KEY, cssText); } catch(e) {}
+        }
+
+        function loadCustomCSSFromStorage() {
+            try {
+                const css = localStorage.getItem(CUSTOM_CSS_KEY);
+                if (css) {
+                    applyCustomCSS(css);
+                    const area = document.getElementById('ctrl-custom-css');
+                    if (area) area.value = css;
+                }
+            } catch(e) {}
+        }
+
+        // --- Extract current theme's CSS rules for editing ---
+        function extractThemeCSS(theme) {
+            if (!theme || theme === 'none') return '/* No theme selected — choose a Bubble Style first */';
+            const selector = `.bubble-${theme}`;
+            let rules = [];
+            try {
+                for (const sheet of document.styleSheets) {
+                    // Skip injected custom CSS sheet
+                    try {
+                        if (sheet.ownerNode && sheet.ownerNode.id === 'injected-custom-css') continue;
+                        for (const rule of sheet.cssRules) {
+                            if (rule.selectorText && rule.selectorText.includes(selector)) {
+                                rules.push(rule.cssText);
+                            }
+                        }
+                    } catch(e) { /* cross-origin sheet */ }
+                }
+            } catch(e) {}
+            if (rules.length === 0) return `/* No CSS rules found for ${selector} */`;
+            // Pretty-print: add newlines after { and before }
+            return `/* === Theme: ${theme} === */\n\n` + rules.map(r => {
+                return r
+                    .replace(/\{\s*/g, ' {\n    ')
+                    .replace(/;\s*/g, ';\n    ')
+                    .replace(/\s*\}/g, '\n}');
+            }).join('\n\n');
+        }
+
+        // ============================================================
+        //  PERSISTENCE: localStorage auto-save, per-theme, profiles
+        // ============================================================
+        const STORAGE_KEY = 'niconico-config';
+        const THEME_PRESETS_KEY = 'niconico-theme-presets';
+        const PROFILES_KEY = 'niconico-profiles';
+
+        // --- Serializable config keys (exclude runtime-only fields) ---
+        const PERSIST_KEYS = [
+            'scrollSpeed', 'fontSize', 'fontFamily', 'fontUrl', 'textColor',
+            'textShadow', 'borderThickness', 'opacity', 'colorPool', 'colorPoolPrimary', 'colorPoolAccent', 'colorPoolText', 'movementMode',
+            'animationMode', 'bubbleStyle', 'showUsername', 'userTheme', 'userColorSource', 'userSize', 'eventMode',
+            'alertDuration', 'primaryColor', 'accentColor'
+        ];
+
+        function getSerializableConfig() {
+            const obj = {};
+            PERSIST_KEYS.forEach(k => { if (config[k] !== undefined) obj[k] = config[k]; });
+            return obj;
+        }
+
+        // --- 1. Auto-save to localStorage ---
+        function saveConfigToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(getSerializableConfig()));
+            } catch(e) { /* quota exceeded or private mode */ }
+        }
+
+        function loadConfigFromStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return false;
+                const saved = JSON.parse(raw);
+                PERSIST_KEYS.forEach(k => { if (saved[k] !== undefined) config[k] = saved[k]; });
+                return true;
+            } catch(e) { return false; }
+        }
+
+        // --- 2. Per-theme presets ---
+        function getThemePresets() {
+            try {
+                return JSON.parse(localStorage.getItem(THEME_PRESETS_KEY) || '{}');
+            } catch(e) { return {}; }
+        }
+
+        function saveThemePreset(theme) {
+            if (!theme || theme === 'none') return;
+            const presets = getThemePresets();
+            const obj = getSerializableConfig();
+            delete obj.bubbleStyle; // don't store theme inside its own preset
+            presets[theme] = obj;
+            try { localStorage.setItem(THEME_PRESETS_KEY, JSON.stringify(presets)); } catch(e) {}
+        }
+
+        function loadThemePreset(theme) {
+            if (!theme || theme === 'none') return false;
+            const presets = getThemePresets();
+            if (!presets[theme]) return false;
+            const saved = presets[theme];
+            PERSIST_KEYS.forEach(k => {
+                if (k !== 'bubbleStyle' && saved[k] !== undefined) config[k] = saved[k];
+            });
+            return true;
+        }
+
+        // --- 3. Named profiles ---
+        function getProfiles() {
+            try {
+                return JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}');
+            } catch(e) { return {}; }
+        }
+
+        function saveProfile(name) {
+            if (!name) return;
+            const profiles = getProfiles();
+            profiles[name] = getSerializableConfig();
+            try { localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles)); } catch(e) {}
+            refreshProfileDropdown();
+        }
+
+        function loadProfile(name) {
+            if (!name) return false;
+            const profiles = getProfiles();
+            if (!profiles[name]) return false;
+            const saved = profiles[name];
+            PERSIST_KEYS.forEach(k => { if (saved[k] !== undefined) config[k] = saved[k]; });
+            syncPanelFromConfig();
+            saveConfigToStorage();
+            return true;
+        }
+
+        function deleteProfile(name) {
+            if (!name) return;
+            const profiles = getProfiles();
+            delete profiles[name];
+            try { localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles)); } catch(e) {}
+            refreshProfileDropdown();
+        }
+
+        function refreshProfileDropdown() {
+            const sel = document.getElementById('ctrl-profile-list');
+            if (!sel) return;
+            const profiles = getProfiles();
+            sel.innerHTML = '<option value="">— select —</option>';
+            Object.keys(profiles).sort().forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                sel.appendChild(opt);
+            });
+        }
+
+        function showProfileStatus(msg) {
+            const el = document.getElementById('profile-status');
+            if (el) {
+                el.textContent = msg;
+                setTimeout(() => { el.textContent = ''; }, 3000);
+            }
+        }
+
+        // --- Sync panel UI controls FROM config object ---
+        function syncPanelFromConfig() {
+            const panel = document.getElementById('test-panel');
+            if (!panel) return;
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            setVal('ctrl-movement', config.movementMode);
+            setVal('ctrl-bubble', config.bubbleStyle);
+            setVal('ctrl-anim', config.animationMode);
+            setVal('ctrl-shadow', config.textShadow);
+            setVal('ctrl-border-thickness', config.borderThickness);
+            setVal('ctrl-opacity', config.opacity);
+            setVal('ctrl-speed', config.scrollSpeed);
+            setVal('ctrl-fontsize', config.fontSize);
+            setVal('ctrl-username', config.showUsername);
+            setVal('ctrl-user-theme', config.userTheme);
+            setVal('ctrl-user-color', config.userColorSource);
+            setVal('ctrl-usersize', config.userSize);
+            setVal('ctrl-eventmode', config.eventMode);
+            setVal('ctrl-alertduration', config.alertDuration);
+            setVal('ctrl-primary', config.primaryColor || '');
+            setVal('ctrl-accent', config.accentColor || '');
+            setVal('ctrl-fonturl', config.fontUrl || '');
+            setVal('ctrl-text', config.textColor || '');
+            setVal('ctrl-colorpool', config.colorPool || '');
+            setVal('ctrl-colorpoolprimary', config.colorPoolPrimary || '');
+            setVal('ctrl-colorpoolaccent', config.colorPoolAccent || '');
+            setVal('ctrl-colorpooltext', config.colorPoolText || '');
+            // Sync color pickers
+            const pp = document.getElementById('ctrl-primary-picker');
+            if (pp && config.primaryColor && /^#[0-9a-f]{6}$/i.test(config.primaryColor)) pp.value = config.primaryColor;
+            const ap = document.getElementById('ctrl-accent-picker');
+            if (ap && config.accentColor && /^#[0-9a-f]{6}$/i.test(config.accentColor)) ap.value = config.accentColor;
+            const tp = document.getElementById('ctrl-text-picker');
+            if (tp && config.textColor && /^#[0-9a-f]{6}$/i.test(config.textColor)) tp.value = config.textColor;
+        }
+
+        // --- Init ---
+        function init() {
+            // Hydrate config from localStorage (URL params already applied above)
+            const hasUrlParams = window.location.search.length > 1;
+            if (!hasUrlParams) loadConfigFromStorage();
+
+            // Generate exact theme matches for user-theme-match badges dynamically
+            try {
+                let matchCSS = '';
+                for (let i=0; i < document.styleSheets.length; i++) {
+                    const sheet = document.styleSheets[i];
+                    if (sheet.ownerNode && sheet.ownerNode.id === 'injected-custom-css') continue;
+                    for (let j = 0; j < sheet.cssRules.length; j++) {
+                        const rule = sheet.cssRules[j];
+                        if (rule.selectorText && rule.selectorText.includes('.nico-inner') && rule.selectorText.includes('.bubble-')) {
+                            const themeClass = rule.selectorText.split('.nico-inner')[0].trim();
+                            const bg = rule.style.background || rule.style.backgroundColor;
+                            const brd = rule.style.border || rule.style.borderColor || rule.style.borderTop;
+                            const shadow = rule.style.boxShadow;
+                            let block = '';
+                            if (bg) block += `background: ${bg} !important; `;
+                            if (brd) block += `border-color: ${brd} !important; border-top-color: ${brd} !important; border-bottom-color: ${brd} !important; `;
+                            if (shadow) block += `box-shadow: ${shadow} !important; `;
+                            if (block) matchCSS += `${themeClass} .user-theme-match.user-layout-badge-top .nico-username, ${themeClass} .user-theme-match.user-layout-badge-bottom .nico-username { ${block} }\n`;
+                        }
+                    }
+                }
+                if (matchCSS) {
+                    const style = document.createElement('style');
+                    style.id = 'dynamic-badge-match-css';
+                    style.textContent = matchCSS;
+                    document.head.appendChild(style);
+                }
+            } catch(e) { console.error("Could not generate badge theme matches", e); }
+
+            initLanes();
+            window.addEventListener('resize', initLanes);
+            loadFont();
+
+            // Show test panel only when NOT in OBS
+            if (!isOBS()) {
+                const panel = document.getElementById('test-panel');
+                if (panel) {
+                    panel.style.display = 'block';
+                    syncPanelFromConfig();
+                    refreshProfileDropdown();
+                    document.body.style.background = 'linear-gradient(135deg, #0f0c29, #302b63, #24243e)';
+
+                    // Wire up controls — auto-save on every change
+                    document.querySelectorAll('#test-panel select, #test-panel input').forEach(el => {
+                        el.addEventListener('change', applyPanelConfig);
+                        // Range sliders: also fire on input for live updates
+                        if (el.type === 'range') {
+                            el.addEventListener('input', () => {
+                                updateRangeDisplays();
+                                applyPanelConfig();
+                            });
+                        }
+                    });
+
+                    // Range slider value displays
+                    function updateRangeDisplays() {
+                        const sv = document.getElementById('speed-val');
+                        const fv = document.getElementById('fontsize-val');
+                        const bv = document.getElementById('border-val');
+                        const ov = document.getElementById('opacity-val');
+                        if (sv) sv.textContent = document.getElementById('ctrl-speed').value;
+                        if (fv) fv.textContent = document.getElementById('ctrl-fontsize').value;
+                        if (bv) bv.textContent = document.getElementById('ctrl-border-thickness').value;
+                        if (ov) ov.textContent = Math.round(document.getElementById('ctrl-opacity').value * 100);
+                    }
+                    updateRangeDisplays();
+
+                    // Color picker ↔ text input sync
+                    const primaryPicker = document.getElementById('ctrl-primary-picker');
+                    const primaryText = document.getElementById('ctrl-primary');
+                    const accentPicker = document.getElementById('ctrl-accent-picker');
+                    const accentText = document.getElementById('ctrl-accent');
+
+                    const textPicker = document.getElementById('ctrl-text-picker');
+                    const textText = document.getElementById('ctrl-text');
+
+                    primaryPicker.addEventListener('input', () => {
+                        primaryText.value = primaryPicker.value;
+                        applyPanelConfig();
+                    });
+                    primaryText.addEventListener('input', () => {
+                        if (/^#[0-9a-f]{6}$/i.test(primaryText.value)) primaryPicker.value = primaryText.value;
+                    });
+                    accentPicker.addEventListener('input', () => {
+                        accentText.value = accentPicker.value;
+                        applyPanelConfig();
+                    });
+                    accentText.addEventListener('input', () => {
+                        if (/^#[0-9a-f]{6}$/i.test(accentText.value)) accentPicker.value = accentText.value;
+                    });
+                    textPicker.addEventListener('input', () => {
+                        textText.value = textPicker.value;
+                        applyPanelConfig();
+                    });
+                    textText.addEventListener('input', () => {
+                        if (/^#[0-9a-f]{6}$/i.test(textText.value)) textPicker.value = textText.value;
+                    });
+
+                    // Color pool swatch management
+                    function renderPoolSwatches() {
+                        const targetKey = document.getElementById('ctrl-pool-target').value;
+                        const container = document.getElementById('color-pool-swatches');
+                        const hiddenId = 'ctrl-' + targetKey.toLowerCase();
+                        const hidden = document.getElementById(hiddenId);
+
+                        const pool = hidden && hidden.value ? hidden.value.split(',').map(c => c.trim()).filter(c => c) : [];
+                        container.innerHTML = '';
+                        pool.forEach((color, idx) => {
+                            const swatch = document.createElement('div');
+                            swatch.className = 'pool-swatch';
+                            swatch.style.background = color;
+                            swatch.title = `${color} — click to remove`;
+                            swatch.addEventListener('click', () => {
+                                pool.splice(idx, 1);
+                                if(hidden) hidden.value = pool.join(', ');
+                                renderPoolSwatches();
+                                applyPanelConfig();
+                            });
+                            container.appendChild(swatch);
+                        });
+                    }
+
+                    // Tab switching logic
+                    const poolTabs = document.querySelectorAll('.pool-tab');
+                    const targetHidden = document.getElementById('ctrl-pool-target');
+                    poolTabs.forEach(tab => {
+                        tab.addEventListener('click', () => {
+                            poolTabs.forEach(t => t.classList.remove('active'));
+                            tab.classList.add('active');
+                            targetHidden.value = tab.getAttribute('data-target');
+                            renderPoolSwatches();
+                        });
+                    });
+
+                    document.getElementById('btn-add-pool-color').addEventListener('click', () => {
+                        const picker = document.getElementById('ctrl-pool-picker');
+                        const targetKey = document.getElementById('ctrl-pool-target').value;
+                        const hiddenId = 'ctrl-' + targetKey.toLowerCase();
+                        const hidden = document.getElementById(hiddenId);
+
+                        const pool = hidden && hidden.value ? hidden.value.split(',').map(c => c.trim()).filter(c => c) : [];
+                        pool.push(picker.value);
+                        if(hidden) hidden.value = pool.join(', ');
+                        renderPoolSwatches();
+                        applyPanelConfig();
+                    });
+                    document.getElementById('btn-clear-pool').addEventListener('click', () => {
+                        const targetKey = document.getElementById('ctrl-pool-target').value;
+                        const hiddenId = 'ctrl-' + targetKey.toLowerCase();
+                        const hidden = document.getElementById(hiddenId);
+                        if(hidden) hidden.value = '';
+                        renderPoolSwatches();
+                        applyPanelConfig();
+                    });
+                    renderPoolSwatches();
+
+                    // Enter key on custom message
+                    document.getElementById('ctrl-message').addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            applyPanelConfig();
+                            const text = document.getElementById('ctrl-message').value || 'Hello NicoNico!';
+                            spawnMessage(text, 'TestUser', '#00e5ff');
+                        }
+                    });
+
+                    // Per-theme preset: save old theme, load new theme when switching
+                    let lastBubble = config.bubbleStyle;
+                    document.getElementById('ctrl-bubble').addEventListener('change', () => {
+                        saveThemePreset(lastBubble); // save settings for old theme
+                        const newTheme = document.getElementById('ctrl-bubble').value;
+                        config.bubbleStyle = newTheme;
+                        if (loadThemePreset(newTheme)) {
+                            syncPanelFromConfig();
+                            updateRangeDisplays();
+                            renderPoolSwatches();
+                        }
+                        lastBubble = newTheme;
+                        saveConfigToStorage();
+                    });
+
+                    // Chat buttons
+                    document.getElementById('btn-spawn').addEventListener('click', () => {
+                        applyPanelConfig();
+                        spawnTestMessages(8);
+                    });
+                    document.getElementById('btn-single').addEventListener('click', () => {
+                        applyPanelConfig();
+                        const text = document.getElementById('ctrl-message').value || 'Hello NicoNico!';
+                        spawnMessage(text, 'TestUser', '#00e5ff');
+                    });
+                    document.getElementById('btn-clear').addEventListener('click', () => {
+                        document.getElementById('niconico-container').innerHTML = '';
+                        document.getElementById('alert-container').innerHTML = '';
+                        activeMessages = 0;
+                        alertQueue.length = 0;
+                        alertActive = false;
+                    });
+
+                    // Profile buttons
+                    document.getElementById('btn-profile-save').addEventListener('click', () => {
+                        applyPanelConfig();
+                        const name = document.getElementById('ctrl-profile-name').value.trim();
+                        if (!name) { showProfileStatus('⚠️ Enter a profile name first'); return; }
+                        saveProfile(name);
+                        showProfileStatus(`✅ Saved profile "${name}"`);
+                    });
+                    document.getElementById('btn-profile-load').addEventListener('click', () => {
+                        const name = document.getElementById('ctrl-profile-list').value;
+                        if (!name) { showProfileStatus('⚠️ Select a profile to load'); return; }
+                        if (loadProfile(name)) {
+                            showProfileStatus(`📂 Loaded profile "${name}"`);
+                        } else {
+                            showProfileStatus('⚠️ Profile not found');
+                        }
+                    });
+                    document.getElementById('btn-profile-delete').addEventListener('click', () => {
+                        const name = document.getElementById('ctrl-profile-list').value;
+                        if (!name) { showProfileStatus('⚠️ Select a profile to delete'); return; }
+                        deleteProfile(name);
+                        showProfileStatus(`🗑️ Deleted profile "${name}"`);
+                    });
+
+                    // Import / Export / Reset
+                    document.getElementById('btn-profile-export').addEventListener('click', () => {
+                        exportProfiles();
+                        showProfileStatus('📤 Exported profiles to JSON');
+                    });
+                    document.getElementById('btn-profile-import').addEventListener('click', () => {
+                        document.getElementById('profile-import-file').click();
+                    });
+                    document.getElementById('profile-import-file').addEventListener('change', (e) => {
+                        if (e.target.files[0]) importProfiles(e.target.files[0]);
+                        e.target.value = ''; // reset so same file can be re-imported
+                    });
+                    document.getElementById('btn-reset-defaults').addEventListener('click', () => {
+                        resetToDefaults();
+                        showProfileStatus('🔄 Reset to factory defaults');
+                    });
+
+                    // Custom CSS
+                    document.getElementById('btn-apply-css').addEventListener('click', () => {
+                        const css = document.getElementById('ctrl-custom-css').value;
+                        applyCustomCSS(css);
+                        showProfileStatus('✅ Custom CSS applied');
+                    });
+                    document.getElementById('btn-upload-css').addEventListener('click', () => {
+                        document.getElementById('css-upload-file').click();
+                    });
+                    document.getElementById('css-upload-file').addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            const css = ev.target.result;
+                            document.getElementById('ctrl-custom-css').value = css;
+                            applyCustomCSS(css);
+                            showProfileStatus(`📁 Loaded ${file.name}`);
+                        };
+                        reader.readAsText(file);
+                        e.target.value = '';
+                    });
+                    document.getElementById('btn-clear-css').addEventListener('click', () => {
+                        document.getElementById('ctrl-custom-css').value = '';
+                        applyCustomCSS('');
+                        showProfileStatus('🗑️ Custom CSS cleared');
+                    });
+                    document.getElementById('btn-load-theme-css').addEventListener('click', () => {
+                        const theme = document.getElementById('ctrl-bubble').value;
+                        const css = extractThemeCSS(theme);
+                        document.getElementById('ctrl-custom-css').value = css;
+                        // Auto-open the details if closed
+                        const details = document.getElementById('btn-load-theme-css').closest('details');
+                        if (details) details.open = true;
+                        showProfileStatus(`🎨 Loaded CSS for "${theme}" — edit and click Apply`);
+                    });
+
+                    // Load persisted custom CSS
+                    loadCustomCSSFromStorage();
+
+                    // Event test buttons
+                    document.getElementById('btn-evt-follow').addEventListener('click', () => {
+                        applyPanelConfig();
+                        handleStreamEvent('follow', randomUser(), 'just followed!');
+                    });
+                    document.getElementById('btn-evt-sub').addEventListener('click', () => {
+                        applyPanelConfig();
+                        handleStreamEvent('sub', randomUser(), 'subscribed at Tier 1!');
+                    });
+                    document.getElementById('btn-evt-raid').addEventListener('click', () => {
+                        applyPanelConfig();
+                        handleStreamEvent('raid', `${randomUser()} with ${Math.floor(Math.random() * 500 + 10)} viewers!`, 'INCOMING RAID');
+                    });
+                    document.getElementById('btn-evt-cheer').addEventListener('click', () => {
+                        applyPanelConfig();
+                        const bits = [100, 500, 1000, 5000][Math.floor(Math.random() * 4)];
+                        handleStreamEvent('cheer', `${randomUser()} cheered ${bits} bits!`, '"hype hype hype!"');
+                    });
+                    document.getElementById('btn-evt-gift').addEventListener('click', () => {
+                        applyPanelConfig();
+                        handleStreamEvent('giftsub', `${randomUser()} → ${randomUser()}`, 'gifted a sub!');
+                    });
+                    document.getElementById('btn-evt-giftbomb').addEventListener('click', () => {
+                        applyPanelConfig();
+                        const count = [5, 10, 25, 50][Math.floor(Math.random() * 4)];
+                        handleStreamEvent('giftbomb', `${randomUser()} × ${count} subs!`, 'GIFT BOMB!');
+                    });
+
+                    // Auto-spawn some test messages
+                    setTimeout(() => spawnTestMessages(6), 500);
+                }
+            }
+
+            // Connect to Streamer.bot
+            connectToStreamerBot();
+        }
+
+        // Start
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>
