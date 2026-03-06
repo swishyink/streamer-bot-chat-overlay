@@ -1699,6 +1699,13 @@
             color: #00e5ff !important;
             border: var(--nico-border-width, 1px) solid rgba(0, 229, 255, 0.3) !important;
         }
+        /* --- Settings Panel State Styling --- */
+        .disabled-field {
+            opacity: 0.4;
+            pointer-events: none;
+            filter: grayscale(100%);
+        }
+        
     </style>
 </head>
 
@@ -2520,6 +2527,39 @@
                 urlParams.get('obs') === 'true';
         }
 
+        // --- Update UI disabled states based on selections ---
+        function updatePanelVisibility() {
+            const displayMode = document.getElementById('ctrl-display-mode')?.value;
+            const userShow = document.getElementById('ctrl-username')?.value;
+            const userTheme = document.getElementById('ctrl-user-theme')?.value;
+
+            // 1. Movement is disabled in static modes if it's not a supported pop-in animation
+            const moveContainer = document.getElementById('ctrl-movement')?.parentElement;
+            if (moveContainer) {
+                // In Vertical/Horizontal, "Scroll" becomes "Slide In Side", "Float" becomes "Slide Up"
+                // They all still vaguely work as pop-in animations, so we don't strictly disable them,
+                // but we could. For now, we leave Movement enabled for all.
+            }
+
+            // 2. Username Dependent Fields
+            const userThemeContainer = document.getElementById('ctrl-user-theme')?.parentElement;
+            const userColorContainer = document.getElementById('ctrl-user-color')?.parentElement;
+            const userSizeContainer = document.getElementById('ctrl-usersize')?.parentElement;
+
+            if (userShow === 'hidden') {
+                if (userThemeContainer) userThemeContainer.classList.add('disabled-field');
+                if (userColorContainer) userColorContainer.classList.add('disabled-field');
+                if (userSizeContainer) userSizeContainer.classList.add('disabled-field');
+            } else {
+                if (userThemeContainer) userThemeContainer.classList.remove('disabled-field');
+                if (userColorContainer) userColorContainer.classList.remove('disabled-field');
+                if (userSizeContainer) userSizeContainer.classList.remove('disabled-field');
+                
+                // If user theme is NOT 'match', 'dark', 'light', or 'clear', color picker might override.
+                // But specifically if user color source is 'twitch' and theme is 'match', it's active.
+            }
+        }
+
         // --- Apply config from test panel controls ---
         function applyPanelConfig() {
             const panel = document.getElementById('test-panel');
@@ -2576,6 +2616,7 @@
                 loadFont();
             }
 
+            updatePanelVisibility();
             initLanes();
             saveConfigToStorage();
         }
@@ -2597,12 +2638,15 @@
             config.accentColor = '';
             syncPanelFromConfig();
             saveConfigToStorage();
+            
             // Clear custom CSS
             const cssTag = document.getElementById('injected-custom-css');
             if (cssTag) cssTag.textContent = '';
             const cssArea = document.getElementById('ctrl-custom-css');
             if (cssArea) cssArea.value = '';
             try { localStorage.removeItem('niconico-custom-css'); } catch(e) {}
+            
+            updatePanelVisibility();
         }
 
         // --- Export all profiles as JSON download ---
@@ -2901,6 +2945,7 @@
                 if (panel) {
                     panel.style.display = 'block';
                     syncPanelFromConfig();
+                    updatePanelVisibility();
                     refreshProfileDropdown();
                     document.body.style.background = 'linear-gradient(135deg, #0f0c29, #302b63, #24243e)';
 
