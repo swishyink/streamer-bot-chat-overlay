@@ -57,3 +57,9 @@ To customize the look and feel of the overlay:
 ## 📝 License
 
 This project is provided as-is. Feel free to modify and customize it for your own stream!
+
+---
+
+> [!NOTE]
+> This documentation was written by an AI coding assistant.
+> Inspired by and based on the concepts from [showmy.chat](https://github.com/BenDMyers/showmy.chat) by [Ben Myers](https://github.com/BenDMyers).
