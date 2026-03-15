@@ -8,6 +8,7 @@
 
     <!-- Streamer.bot WebSocket Client (CDN) -->
     <script src="https://unpkg.com/@streamerbot/client@latest/dist/streamerbot-client.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
 
     <style>
         /* ============================================================
@@ -38,6 +39,13 @@
             z-index: 9999;
         }
 
+        #emote-overlay-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9998;
+        }
+
         /* --- Alternative Chat Modes --- */
         #niconico-container.layout-vertical {
             display: flex;
@@ -61,41 +69,258 @@
         #niconico-container.layout-vertical .nico-msg,
         #niconico-container.layout-horizontal .nico-msg {
             position: relative; /* Override absolute positioning */
-            animation: none;    /* Disable scrolling animations */
-            transform: none !important;
-            will-change: auto;
+            will-change: transform, opacity;
+            white-space: normal;
+        }
+
+        #niconico-container.layout-vertical .nico-msg {
+            max-width: min(52vw, 48rem);
+        }
+
+        #niconico-container.layout-horizontal .nico-msg {
+            max-width: min(34vw, 34rem);
+        }
+
+        #niconico-container.layout-vertical .nico-inner,
+        #niconico-container.layout-horizontal .nico-inner {
+            display: inline-block;
+            max-width: 100%;
+        }
+
+        #niconico-container.layout-vertical .nico-text-content,
+        #niconico-container.layout-horizontal .nico-text-content {
+            overflow-wrap: anywhere;
+        }
+
+        #niconico-container.layout-vertical .layout-exiting,
+        #niconico-container.layout-horizontal .layout-exiting {
+            pointer-events: none;
         }
 
         /* --- Alternative Layout Animations --- */
-        .layout-vertical .move-scroll, .layout-horizontal .move-scroll {
-            animation: slideInSide 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+        .layout-vertical .layout-entry-scroll {
+            animation: layoutSlideInFromLeft 0.42s cubic-bezier(0.22, 1, 0.36, 1) both !important;
         }
 
-        .layout-vertical .move-plaster, .layout-horizontal .move-plaster {
-            animation: plasterSlam 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+        .layout-horizontal .layout-entry-scroll {
+            animation: layoutSlideInFromBottom 0.42s cubic-bezier(0.22, 1, 0.36, 1) both !important;
         }
 
-        .layout-vertical .move-float, .layout-horizontal .move-float {
-            animation: slideUpIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+        .layout-vertical .layout-entry-plaster,
+        .layout-horizontal .layout-entry-plaster {
+            animation: layoutPlasterIn 0.34s cubic-bezier(0.16, 1, 0.3, 1) both !important;
         }
 
-        .layout-vertical .move-zoom, .layout-horizontal .move-zoom {
-            animation: zoomInPopup 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+        .layout-vertical .layout-entry-float,
+        .layout-horizontal .layout-entry-float {
+            animation: layoutFloatIn 0.46s cubic-bezier(0.19, 1, 0.22, 1) both !important;
         }
 
-        .layout-vertical .move-swing, .layout-horizontal .move-swing {
-            animation: dropAndSwing 1.0s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+        .layout-vertical .layout-entry-zoom,
+        .layout-horizontal .layout-entry-zoom {
+            animation: layoutZoomIn 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+        }
+
+        .layout-vertical .layout-entry-swing,
+        .layout-horizontal .layout-entry-swing {
+            animation: layoutSwingIn 0.7s cubic-bezier(0.2, 1, 0.2, 1) both !important;
             transform-origin: top center;
         }
 
-        @keyframes slideInSide {
-            0% { transform: translateX(50px); opacity: 0; }
+        .layout-vertical .layout-exit-scroll {
+            animation: layoutSlideOutLeft var(--layout-exit-duration, 0.32s) ease both !important;
+        }
+
+        .layout-horizontal .layout-exit-scroll {
+            animation: layoutSlideOutUp var(--layout-exit-duration, 0.32s) ease both !important;
+        }
+
+        .layout-vertical .layout-exit-plaster,
+        .layout-horizontal .layout-exit-plaster {
+            animation: layoutPlasterOut var(--layout-exit-duration, 0.32s) ease both !important;
+        }
+
+        .layout-vertical .layout-exit-float,
+        .layout-horizontal .layout-exit-float {
+            animation: layoutFloatOut var(--layout-exit-duration, 0.32s) ease-in both !important;
+        }
+
+        .layout-vertical .layout-exit-zoom,
+        .layout-horizontal .layout-exit-zoom {
+            animation: layoutZoomOut var(--layout-exit-duration, 0.32s) ease-in both !important;
+        }
+
+        .layout-vertical .layout-exit-swing,
+        .layout-horizontal .layout-exit-swing {
+            animation: layoutSwingOut var(--layout-exit-duration, 0.32s) ease-in both !important;
+            transform-origin: top center;
+        }
+
+        .layout-vertical .layout-exit-fade,
+        .layout-horizontal .layout-exit-fade {
+            animation: layoutFadeOut var(--layout-exit-duration, 0.32s) ease both !important;
+        }
+
+        @keyframes layoutSlideInFromLeft {
+            0% { transform: translateX(-34px); opacity: 0; }
             100% { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes layoutSlideInFromBottom {
+            0% { transform: translateY(26px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
         }
 
         @keyframes slideUpIn {
             0% { transform: translateY(30px); opacity: 0; }
             100% { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes layoutPlasterIn {
+            0% {
+                transform: scale(1.18) rotate(4deg);
+                opacity: 0;
+                filter: blur(6px);
+            }
+
+            100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+                filter: blur(0);
+            }
+        }
+
+        @keyframes layoutPlasterOut {
+            0% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.92) rotate(-3deg);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes layoutFloatIn {
+            0% {
+                transform: translateY(22px);
+                opacity: 0;
+            }
+
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes layoutFloatOut {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-18px);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes layoutZoomIn {
+            0% {
+                transform: scale(0.88);
+                opacity: 0;
+                filter: blur(6px);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+                filter: blur(0);
+            }
+        }
+
+        @keyframes layoutZoomOut {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.9);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes layoutSwingIn {
+            0% {
+                transform: translateY(-28px) rotate(-8deg);
+                opacity: 0;
+            }
+
+            55% {
+                transform: translateY(0) rotate(5deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        @keyframes layoutSwingOut {
+            0% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-12px) rotate(8deg);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes layoutSlideOutLeft {
+            0% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateX(-28px);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes layoutSlideOutUp {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-20px);
+                opacity: 0;
+                filter: blur(4px);
+            }
+        }
+
+        @keyframes layoutFadeOut {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.96);
+            }
         }
 
         /* Default Pop-in fallback for alternative layouts */
@@ -121,28 +346,97 @@
             color: var(--nico-color, #FFFFFF);
         }
 
+        .nico-msg.emote-message {
+            text-shadow: none !important;
+            line-height: 1;
+        }
+
+        .nico-msg.emote-message .nico-text-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.18em;
+            flex-wrap: wrap;
+            max-width: min(100%, 18em);
+        }
+
+        .nico-msg.emote-message .nico-emote,
+        .nico-msg.emote-message .nico-emoji-glyph,
+        .nico-msg.emote-message .nico-emote-token {
+            flex: 0 0 auto;
+        }
+
+        .nico-msg.emote-message .nico-emote {
+            height: calc(var(--nico-font-size, 32px) * var(--nico-emote-scale, 1.8));
+            width: auto;
+            object-fit: contain;
+            vertical-align: middle;
+            filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
+        }
+
+        .nico-msg.emote-message .nico-emoji-glyph {
+            font-size: calc(var(--nico-font-size, 32px) * var(--nico-emote-scale, 1.55));
+            line-height: 1;
+            filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.22));
+        }
+
+        .nico-msg.emote-message .nico-emote-token {
+            font-size: calc(var(--nico-font-size, 32px) * 0.78);
+            line-height: 1.05;
+            padding: 0.16em 0.34em;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .nico-msg.emote-mode-bubble .nico-text-content {
+            max-width: min(100%, 14em);
+        }
+
+        .nico-msg.emote-mode-clean .nico-inner,
+        .nico-msg.emote-mode-separate .nico-inner {
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 0 !important;
+        }
+
+        .nico-msg.emote-mode-clean .nico-text-content,
+        .nico-msg.emote-mode-separate .nico-text-content {
+            max-width: min(100%, 16em);
+        }
+
+        .nico-msg.emote-mode-separate .nico-text-content {
+            justify-content: center;
+        }
+
         /* --- Movement Animations --- */
         .move-scroll {
-            animation: slideInRight var(--nico-speed, 8s) linear forwards;
+            animation:
+                slideInRight var(--nico-speed, 8s) linear forwards,
+                tailFadeOpacity var(--nico-tail-fade-duration, 0.5s) var(--nico-tail-fade-delay, 7.5s) linear forwards;
         }
 
         .move-plaster {
             animation: plasterSlam 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards,
-                fadeOutDown 0.5s calc(var(--nico-speed, 8s) - 0.5s) ease-in forwards;
+                fadeOutDown var(--nico-tail-fade-duration, 0.5s) var(--nico-tail-fade-delay, 7.5s) ease-in forwards;
         }
 
         .move-float {
-            animation: floatUp var(--nico-speed, 8s) cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            animation:
+                floatUpPath var(--nico-speed, 8s) cubic-bezier(0.4, 0, 0.2, 1) forwards,
+                floatFadeIn 0.24s ease-out forwards,
+                tailFadeOpacity var(--nico-tail-fade-duration, 0.5s) var(--nico-tail-fade-delay, 7.5s) ease-in forwards;
         }
 
         .move-zoom {
             animation: zoomInPopup 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
-                fadeOutScale 0.5s calc(var(--nico-speed, 8s) - 0.5s) cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+                fadeOutScale var(--nico-tail-fade-duration, 0.5s) var(--nico-tail-fade-delay, 7.5s) cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
         }
 
         .move-swing {
             animation: dropAndSwing 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
-                fadeOutUp 0.5s calc(var(--nico-speed, 8s) - 0.5s) ease-in forwards;
+                fadeOutUp var(--nico-tail-fade-duration, 0.5s) var(--nico-tail-fade-delay, 7.5s) ease-in forwards;
             transform-origin: top center;
         }
 
@@ -165,7 +459,7 @@
 
             100% {
                 transform: scale(1) rotate(0deg);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
                 filter: blur(0);
             }
         }
@@ -173,7 +467,7 @@
         @keyframes fadeOutDown {
             0% {
                 transform: scale(1) translateY(0);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
             }
 
             100% {
@@ -183,23 +477,23 @@
             }
         }
 
-        @keyframes floatUp {
+        @keyframes floatUpPath {
             0% {
                 transform: translateY(110vh) translateX(0);
-                opacity: 0;
-            }
-
-            5% {
-                opacity: 1;
-            }
-
-            95% {
-                opacity: 1;
             }
 
             100% {
                 transform: translateY(-30vh) translateX(0);
+            }
+        }
+
+        @keyframes floatFadeIn {
+            0% {
                 opacity: 0;
+            }
+
+            100% {
+                opacity: var(--nico-target-opacity, 1);
             }
         }
 
@@ -212,7 +506,7 @@
 
             100% {
                 transform: scale(1) translateY(0);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
                 filter: blur(0);
             }
         }
@@ -220,7 +514,7 @@
         @keyframes fadeOutScale {
             0% {
                 transform: scale(1);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
                 filter: blur(0);
             }
 
@@ -239,7 +533,7 @@
 
             40% {
                 transform: translateY(0) rotate(10deg);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
             }
 
             60% {
@@ -252,20 +546,30 @@
 
             100% {
                 transform: rotate(0deg);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
             }
         }
 
         @keyframes fadeOutUp {
             0% {
                 transform: translateY(0);
-                opacity: 1;
+                opacity: var(--nico-target-opacity, 1);
             }
 
             100% {
                 transform: translateY(-20vh);
                 opacity: 0;
                 filter: blur(5px);
+            }
+        }
+
+        @keyframes tailFadeOpacity {
+            0% {
+                opacity: var(--nico-target-opacity, 1);
+            }
+
+            100% {
+                opacity: 0;
             }
         }
 
@@ -1092,6 +1396,21 @@
             text-shadow: inherit;
         }
 
+        .user-theme-match .nico-username {
+            opacity: 1;
+        }
+
+        .user-theme-match.user-layout-inline .nico-username {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.18em 0.55em;
+            margin-right: 8px;
+            line-height: 1.1;
+            border: 0 solid transparent;
+            box-shadow: none;
+            vertical-align: middle;
+        }
+
         /* Username Layout: Badges (Top & Bottom) */
         .user-layout-badge-top.nico-msg, 
         .user-layout-badge-bottom.nico-msg {
@@ -1411,7 +1730,7 @@
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
-        .alert-sub {
+        .alert-subtitle {
             font-family: 'Arial', sans-serif;
             font-size: 14px;
             color: rgba(255, 255, 255, 0.5);
@@ -1755,6 +2074,13 @@
             letter-spacing: 0.5px;
         }
 
+        .panel-hint {
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.58);
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
         .btn-event {
             font-size: 11px !important;
             padding: 7px !important;
@@ -1804,6 +2130,7 @@
 
     <!-- Overlay Container -->
     <div id="niconico-container"></div>
+    <div id="emote-overlay-container"></div>
 
     <!-- Centered Alert Container -->
     <div id="alert-container"></div>
@@ -1820,12 +2147,30 @@
     <!-- Test Panel (only shows when opening file directly in browser, not in OBS) -->
     <div id="test-panel">
         <h3>🎌 Streamer.bot Overlay — Test Panel</h3>
-        <div id="connection-status" class="status-disconnected">⬤ Disconnected from Streamer.bot</div>
+        <div id="connection-status" class="status-disconnected">⬤ Source disconnected</div>
 
         <!-- === CORE SETTINGS (open by default) === -->
         <details open>
             <summary>🎮 Core Settings</summary>
             <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Chat Source</label>
+                        <select id="ctrl-source-mode">
+                            <option value="streamerbot">Streamer.bot</option>
+                            <option value="twitch-direct">Twitch Direct</option>
+                            <option value="demo">Demo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Twitch Channel</label>
+                        <input type="text" id="ctrl-twitch-channel" placeholder="channelname">
+                    </div>
+                    <div>
+                        <label>Message Lifetime <span class="range-val" id="message-lifetime-val">0</span>s</label>
+                        <input type="range" id="ctrl-message-lifetime" value="0" min="0" max="60" step="1" class="nico-range">
+                    </div>
+                </div>
                 <div class="panel-row">
                     <div>
                         <label>Chat Display Mode</label>
@@ -1836,7 +2181,7 @@
                         </select>
                     </div>
                     <div>
-                        <label>Movement (NicoNico Mode)</label>
+                        <label>Movement</label>
                         <select id="ctrl-movement">
                             <option value="scroll">Scroll (Right → Left)</option>
                             <option value="plaster">Plaster / Stamp</option>
@@ -1904,6 +2249,24 @@
                 </div>
                 <div class="panel-row">
                     <div>
+                        <label>List Exit</label>
+                        <select id="ctrl-layout-exit">
+                            <option value="motion">Motion</option>
+                            <option value="fade">Fade Only</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Exit Time <span class="range-val" id="layout-exit-duration-val">0.32</span>s</label>
+                        <input type="range" id="ctrl-layout-exit-duration" value="0.32" min="0.1" max="1.5" step="0.05" class="nico-range">
+                    </div>
+                    <div>
+                        <label>Tail Fade <span class="range-val" id="tail-fade-duration-val">0.5</span>s</label>
+                        <input type="range" id="ctrl-tail-fade-duration" value="0.5" min="0.1" max="2" step="0.05" class="nico-range">
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div>
                         <label>Username Theme</label>
                         <select id="ctrl-user-theme">
                             <option value="match">Match Bubble</option>
@@ -1926,6 +2289,38 @@
                         <input type="range" id="ctrl-usersize" value="0.7" min="0.4" max="1.5" step="0.05" class="nico-range">
                     </div>
                 </div>
+            </div>
+        </details>
+
+        <!-- === EMOTES & EMOJI === -->
+        <details>
+            <summary>😶 Emotes &amp; Emoji</summary>
+            <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Emote/Emoji-Only Messages</label>
+                        <select id="ctrl-emote-mode">
+                            <option value="bubble">Keep In Bubble</option>
+                            <option value="clean">Clean / No Bubble</option>
+                            <option value="separate">Separate Flow</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Emote Scale <span class="range-val" id="emotesize-val">1.8</span>x</label>
+                        <input type="range" id="ctrl-emote-scale" value="1.8" min="1" max="3" step="0.1" class="nico-range">
+                    </div>
+                    <div>
+                        <label>Separate Movement</label>
+                        <select id="ctrl-emote-movement">
+                            <option value="scroll">Scroll (Right → Left)</option>
+                            <option value="plaster">Plaster / Stamp</option>
+                            <option value="float">Float Upwards</option>
+                            <option value="zoom">Zoom-In Popup</option>
+                            <option value="swing">Pendulum Drop &amp; Swing</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="panel-hint">Applies to emoji-only or emote-only chat lines. Mixed text stays on the normal message path, so emotes inside normal sentences do not blow up the layout.</div>
             </div>
         </details>
 
@@ -1999,6 +2394,55 @@
             </div>
         </details>
 
+        <!-- === MESSAGE FILTERS === -->
+        <details>
+            <summary>🚫 Message Filters</summary>
+            <div class="section-body">
+                <div class="panel-row">
+                    <div>
+                        <label>Filter Scope</label>
+                        <select id="ctrl-filter-scope">
+                            <option value="both">Username + Message</option>
+                            <option value="message">Message Only</option>
+                            <option value="username">Username Only</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div>
+                        <label>Whitelist</label>
+                        <textarea id="ctrl-message-whitelist" rows="4" placeholder="One phrase per line. If set, only matching messages pass." style="width:100%;font-family:monospace;font-size:11px;background:rgba(255,255,255,0.05);color:#f8f8f2;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px;resize:vertical;"></textarea>
+                    </div>
+                    <div>
+                        <label>Blacklist</label>
+                        <textarea id="ctrl-message-blacklist" rows="4" placeholder="One phrase per line. Matching messages are dropped." style="width:100%;font-family:monospace;font-size:11px;background:rgba(255,255,255,0.05);color:#f8f8f2;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px;resize:vertical;"></textarea>
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div>
+                        <label>Command Mode</label>
+                        <select id="ctrl-command-mode">
+                            <option value="all">Show All Commands</option>
+                            <option value="hide">Hide All Commands</option>
+                            <option value="allowlist">Show Listed Commands</option>
+                            <option value="denylist">Hide Listed Commands</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Command Prefix</label>
+                        <input type="text" id="ctrl-command-prefix" placeholder="!" maxlength="4">
+                    </div>
+                </div>
+                <div class="panel-row">
+                    <div>
+                        <label>Command List</label>
+                        <textarea id="ctrl-command-list" rows="3" placeholder="One command per line, with or without prefix." style="width:100%;font-family:monospace;font-size:11px;background:rgba(255,255,255,0.05);color:#f8f8f2;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:8px;resize:vertical;"></textarea>
+                    </div>
+                </div>
+                <div class="panel-hint">Case-insensitive contains match. Whitelist runs first, blacklist runs after. Event alerts and event scroll messages are not filtered.</div>
+            </div>
+        </details>
+
         <!-- === EVENTS === -->
         <details>
             <summary>⚡ Events</summary>
@@ -2018,6 +2462,23 @@
                         <input type="number" id="ctrl-alertduration" value="5" min="2" max="15" step="0.5">
                     </div>
                 </div>
+                <!-- Event Toggle Ticks -->
+                <div class="panel-row" style="margin-top: 10px;">
+                    <div>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-follow" checked> Follows</label>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-sub" checked> Subs</label>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-resub" checked> ReSubs</label>
+                    </div>
+                    <div>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-giftsub" checked> Gift Subs</label>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-giftbomb" checked> Gift Bombs</label>
+                    </div>
+                    <div>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-raid" checked> Raids</label>
+                        <label style="margin-bottom: 2px;"><input type="checkbox" id="ctrl-evt-cheer" checked> Cheers</label>
+                    </div>
+                </div>
+                <hr class="panel-divider">
                 <div class="panel-row">
                     <div><button class="btn-event btn-event-follow" id="btn-evt-follow">👤 Follow</button></div>
                     <div><button class="btn-event btn-event-sub" id="btn-evt-sub">⭐ Sub</button></div>
@@ -2066,6 +2527,9 @@
         <details>
             <summary>🔧 Custom CSS</summary>
             <div class="section-body">
+                <label>Theme CSS URL</label>
+                <input type="text" id="ctrl-theme-css-url" placeholder="https://.../theme.css or http://local-device/theme.css">
+                <div class="panel-hint" style="margin:6px 0 10px;">Loaded after built-in bubble styles and before pasted custom CSS.</div>
                 <div class="panel-row" style="margin-bottom:6px;">
                     <div><button id="btn-load-theme-css">🎨 Edit Current Theme</button></div>
                 </div>
@@ -2093,22 +2557,31 @@
 
     <script>
         // ============================================================
-        // NicoNico Chat Overlay — Streamer.bot WebSocket Edition
+        // NicoNico Chat Overlay — Multi-Source Edition
         // ============================================================
 
-        // --- Configuration ---
+        // ============================================================
+        //  CONFIGURATION
+        // ============================================================
         const config = {
             // Streamer.bot WebSocket connection
             sbHost: '127.0.0.1',
             sbPort: 8080,
             sbEndpoint: '/',
+            sourceMode: 'streamerbot',
+            twitchChannel: '',
 
             // Overlay settings
+            chatDisplayMode: 'niconico',
             scrollSpeed: 8,
+            messageLifetime: 0,
             fontSize: 32,
             fontFamily: 'Arial Black',
             fontUrl: '',
+            themeCssUrl: '',
             textColor: '',
+            primaryColor: '',
+            accentColor: '',
             textShadow: 'heavy',
             borderThickness: 1,
             opacity: 1.0,
@@ -2117,10 +2590,25 @@
             colorPoolAccent: '',
             colorPoolText: '',
             movementMode: 'scroll',  // 'scroll', 'plaster', 'float', 'zoom', 'swing'
+            layoutExitMode: 'motion',
+            layoutExitDuration: 0.32,
+            tailFadeDuration: 0.5,
             animationMode: 'none',   // 'none', 'letter', 'word'
             bubbleStyle: 'none',     // 'none', 'glass', 'neumorphic', 'gradient-edge', 'editorial', 'rounded', 'speech', 'glow', 'holo', 'cyber', 'sticky', 'terminal', 'vapor', 'rpg', 'cat', 'frog', 'worm', 'slime', 'ghost'
             maxMessages: 50,
             showUsername: 'inline',
+            userTheme: 'match',
+            userColorSource: 'twitch',
+            userSize: 0.7,
+            filterScope: 'both',
+            messageWhitelist: '',
+            messageBlacklist: '',
+            commandMode: 'all',
+            commandPrefix: '!',
+            commandList: '',
+            emoteMode: 'bubble',
+            emoteScale: 1.8,
+            emoteMovementMode: 'float',
             letterDelay: 40,
             testCommand: '!testnico',
             laneCount: 0,
@@ -2128,14 +2616,25 @@
             // Event settings
             eventMode: 'both',       // 'scroll', 'alert', 'both', 'off'
             alertDuration: 5,        // seconds
+            eventFollowEnabled: true,
+            eventSubEnabled: true,
+            eventResubEnabled: true,
+            eventGiftsubEnabled: true,
+            eventGiftbombEnabled: true,
+            eventRaidEnabled: true,
+            eventCheerEnabled: true,
         };
 
         // --- Parse URL params for config overrides ---
         const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('source')) config.sourceMode = urlParams.get('source');
+        if (urlParams.get('channel')) config.twitchChannel = urlParams.get('channel');
         if (urlParams.get('speed')) config.scrollSpeed = parseFloat(urlParams.get('speed'));
+        if (urlParams.get('lifetime')) config.messageLifetime = parseFloat(urlParams.get('lifetime'));
         if (urlParams.get('fontSize')) config.fontSize = parseInt(urlParams.get('fontSize'));
         if (urlParams.get('font')) config.fontFamily = urlParams.get('font');
         if (urlParams.get('fontUrl')) config.fontUrl = urlParams.get('fontUrl');
+        if (urlParams.get('themeCssUrl')) config.themeCssUrl = urlParams.get('themeCssUrl');
         if (urlParams.get('color')) config.textColor = '#' + urlParams.get('color');
         if (urlParams.get('primary')) config.primaryColor = '#' + urlParams.get('primary');
         if (urlParams.get('accent')) config.accentColor = '#' + urlParams.get('accent');
@@ -2143,6 +2642,9 @@
         if (urlParams.get('border')) config.borderThickness = parseFloat(urlParams.get('border'));
         if (urlParams.get('opacity')) config.opacity = parseFloat(urlParams.get('opacity'));
         if (urlParams.get('movement')) config.movementMode = urlParams.get('movement');
+        if (urlParams.get('layoutExit')) config.layoutExitMode = urlParams.get('layoutExit');
+        if (urlParams.get('layoutExitDuration')) config.layoutExitDuration = parseFloat(urlParams.get('layoutExitDuration'));
+        if (urlParams.get('tailFadeDuration')) config.tailFadeDuration = parseFloat(urlParams.get('tailFadeDuration'));
         if (urlParams.get('animation')) config.animationMode = urlParams.get('animation');
         if (urlParams.get('bubble')) config.bubbleStyle = urlParams.get('bubble');
         if (urlParams.get('max')) config.maxMessages = parseInt(urlParams.get('max'));
@@ -2150,30 +2652,64 @@
             const up = urlParams.get('username');
             config.showUsername = (up === 'yes' || up === 'true') ? 'inline' : (up === 'no' || up === 'false') ? 'hidden' : up;
         }
+        if (urlParams.get('filterScope')) config.filterScope = urlParams.get('filterScope');
+        if (urlParams.get('whitelist')) config.messageWhitelist = urlParams.get('whitelist');
+        if (urlParams.get('blacklist')) config.messageBlacklist = urlParams.get('blacklist');
+        if (urlParams.get('commandMode')) config.commandMode = urlParams.get('commandMode');
+        if (urlParams.get('commandPrefix')) config.commandPrefix = urlParams.get('commandPrefix');
+        if (urlParams.get('commands')) config.commandList = urlParams.get('commands');
+        if (urlParams.get('emoteMode')) config.emoteMode = urlParams.get('emoteMode');
+        if (urlParams.get('emoteScale')) config.emoteScale = parseFloat(urlParams.get('emoteScale'));
+        if (urlParams.get('emoteMovement')) config.emoteMovementMode = urlParams.get('emoteMovement');
         if (urlParams.get('delay')) config.letterDelay = parseInt(urlParams.get('delay'));
         if (urlParams.get('host')) config.sbHost = urlParams.get('host');
         if (urlParams.get('port')) config.sbPort = parseInt(urlParams.get('port'));
         if (urlParams.get('eventMode')) config.eventMode = urlParams.get('eventMode');
         if (urlParams.get('alertDuration')) config.alertDuration = parseFloat(urlParams.get('alertDuration'));
 
-        // --- Font Loading ---
-        let fontLoaded = false;
-        function loadFont() {
-            if (fontLoaded) return;
-            // Priority: fontUrl > fontFamily (auto Google Fonts lookup)
-            if (config.fontUrl) {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = config.fontUrl;
-                document.head.appendChild(link);
-                fontLoaded = true;
-            } else if (config.fontFamily && config.fontFamily !== 'Arial Black') {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(config.fontFamily)}:wght@700;900&display=swap`;
-                document.head.appendChild(link);
-                fontLoaded = true;
+        // ============================================================
+        //  EXTERNAL STYLESHEETS
+        // ============================================================
+        function upsertManagedStylesheetLink(id, href, beforeNodeId, onLoad) {
+            let link = document.getElementById(id);
+            if (!href) {
+                if (link) link.remove();
+                return null;
             }
+
+            if (!link) {
+                link = document.createElement('link');
+                link.id = id;
+                link.rel = 'stylesheet';
+            }
+
+            if (typeof onLoad === 'function') link.onload = onLoad;
+            if (link.getAttribute('href') !== href) link.href = href;
+
+            const beforeNode = beforeNodeId ? document.getElementById(beforeNodeId) : null;
+            if (beforeNode?.parentNode) {
+                beforeNode.parentNode.insertBefore(link, beforeNode);
+            } else if (!link.parentNode) {
+                document.head.appendChild(link);
+            }
+
+            return link;
+        }
+
+        function loadFont() {
+            const href = config.fontUrl
+                ? config.fontUrl
+                : (config.fontFamily && config.fontFamily !== 'Arial Black')
+                    ? `https://fonts.googleapis.com/css2?family=${encodeURIComponent(config.fontFamily)}:wght@700;900&display=swap`
+                    : '';
+
+            upsertManagedStylesheetLink('managed-font-link', href, 'external-theme-css');
+        }
+
+        function applyExternalThemeCss() {
+            upsertManagedStylesheetLink('external-theme-css', config.themeCssUrl, 'injected-custom-css', () => {
+                refreshMatchedUsernameThemes();
+            });
         }
 
         // --- Lane Management ---
@@ -2209,22 +2745,732 @@
 
         // --- Active message tracking ---
         let activeMessages = 0;
+        const messageFilterCache = {
+            whitelist: [],
+            blacklist: [],
+            commands: []
+        };
+        const sourceState = {
+            mode: '',
+            demoTimer: null,
+            directChannel: '',
+            directRecentMessageIds: new Map(),
+            directConnected: false,
+            directConnecting: false,
+            streamerbotConnected: false
+        };
+        const floatingMessages = new Set();
+        let floatingCullTimer = null;
+        const FLOATING_CULL_INTERVAL_MS = 250;
+        const FLOATING_CULL_MARGIN_PX = 48;
+        const DEMO_MESSAGE_INTERVAL_MS = 1800;
+        const MATCHED_USERNAME_STYLE_PROPS = [
+            ['background', 'background'],
+            ['backgroundColor', 'backgroundColor'],
+            ['backgroundImage', 'backgroundImage'],
+            ['backgroundPosition', 'backgroundPosition'],
+            ['backgroundRepeat', 'backgroundRepeat'],
+            ['backgroundSize', 'backgroundSize'],
+            ['backgroundClip', 'backgroundClip'],
+            ['backdropFilter', 'backdropFilter'],
+            ['webkitBackdropFilter', 'webkitBackdropFilter'],
+            ['borderTop', 'borderTop'],
+            ['borderRight', 'borderRight'],
+            ['borderBottom', 'borderBottom'],
+            ['borderLeft', 'borderLeft'],
+            ['borderRadius', 'borderRadius'],
+            ['borderImage', 'borderImage'],
+            ['borderImageSlice', 'borderImageSlice'],
+            ['borderImageWidth', 'borderImageWidth'],
+            ['borderImageOutset', 'borderImageOutset'],
+            ['borderImageRepeat', 'borderImageRepeat'],
+            ['boxShadow', 'boxShadow'],
+            ['fontFamily', 'fontFamily'],
+            ['fontWeight', 'fontWeight'],
+            ['fontStyle', 'fontStyle'],
+            ['letterSpacing', 'letterSpacing'],
+            ['textTransform', 'textTransform'],
+            ['textShadow', 'textShadow']
+        ];
+
+        function getLayoutExitDurationMs() {
+            const seconds = Number.isFinite(config.layoutExitDuration) ? config.layoutExitDuration : 0.32;
+            return Math.max(100, Math.round(seconds * 1000));
+        }
+
+        function getTailFadeDurationSeconds(totalDurationSeconds) {
+            const configured = Number.isFinite(config.tailFadeDuration) ? config.tailFadeDuration : 0.5;
+            const totalDuration = Number.isFinite(totalDurationSeconds) ? totalDurationSeconds : config.scrollSpeed;
+            return Math.max(0.1, Math.min(configured, Math.max(0.1, totalDuration - 0.05)));
+        }
+
+        function parseMessageFilterList(rawValue) {
+            if (!rawValue) return [];
+            return rawValue
+                .split(/\r?\n/)
+                .map((entry) => entry.trim().toLowerCase())
+                .filter(Boolean);
+        }
+
+        function parseCommandEntries(rawValue, prefix = config.commandPrefix) {
+            return parseMessageFilterList(rawValue).map((entry) => {
+                if (prefix && entry.startsWith(prefix.toLowerCase())) return entry.slice(prefix.length);
+                return entry;
+            }).filter(Boolean);
+        }
+
+        function rebuildMessageFilterCache() {
+            messageFilterCache.whitelist = parseMessageFilterList(config.messageWhitelist);
+            messageFilterCache.blacklist = parseMessageFilterList(config.messageBlacklist);
+            messageFilterCache.commands = parseCommandEntries(config.commandList);
+        }
+
+        function normalizeChannelName(channel) {
+            return (channel || '').trim().replace(/^#/, '').toLowerCase();
+        }
+
+        function getCommandName(text) {
+            const prefix = (config.commandPrefix || '!').trim() || '!';
+            const trimmed = (text || '').trim();
+            if (!trimmed.startsWith(prefix)) return null;
+
+            const commandToken = trimmed.slice(prefix.length).split(/\s+/)[0].trim().toLowerCase();
+            return commandToken || null;
+        }
+
+        function pruneRecentDirectMessageIds() {
+            const now = performance.now();
+            sourceState.directRecentMessageIds.forEach((timestamp, id) => {
+                if ((now - timestamp) > 5000) sourceState.directRecentMessageIds.delete(id);
+            });
+        }
+
+        function markDirectMessageSeen(messageId) {
+            if (!messageId) return false;
+            pruneRecentDirectMessageIds();
+            if (sourceState.directRecentMessageIds.has(messageId)) return true;
+            sourceState.directRecentMessageIds.set(messageId, performance.now());
+            return false;
+        }
+
+        function setConnectionStatus(text, className = 'status-disconnected') {
+            const statusEl = document.getElementById('connection-status');
+            if (!statusEl) return;
+            statusEl.textContent = text;
+            statusEl.className = className;
+        }
+
+        function getMessageLifetimeMs(layoutMode, speed) {
+            const lifetime = Number.isFinite(config.messageLifetime) ? config.messageLifetime : 0;
+            if (lifetime <= 0) return null;
+
+            const configuredLifetimeMs = Math.max(250, Math.round(lifetime * 1000));
+            if (layoutMode === 'niconico') {
+                return Math.min(configuredLifetimeMs, Math.max(250, Math.round((speed + 0.5) * 1000)));
+            }
+            return configuredLifetimeMs;
+        }
+
+        function messageMatchesFilterList(text, username, entries, scope) {
+            if (!entries.length) return false;
+
+            const messageValue = (text || '').toLowerCase();
+            const usernameValue = (username || '').toLowerCase();
+            const haystacks = [];
+
+            if (scope === 'both' || scope === 'message') haystacks.push(messageValue);
+            if (scope === 'both' || scope === 'username') haystacks.push(usernameValue);
+
+            if (!haystacks.length) return false;
+            return entries.some((entry) => haystacks.some((haystack) => haystack.includes(entry)));
+        }
+
+        function shouldRenderMessage(text, username, extraClasses, messageOptions = {}) {
+            if (messageOptions.bypassFilters || extraClasses?.includes('nico-event')) return true;
+
+            const commandName = getCommandName(text);
+            if (commandName) {
+                const commandMode = config.commandMode || 'all';
+                const commandInList = messageFilterCache.commands.includes(commandName);
+
+                if (commandMode === 'hide') return false;
+                if (commandMode === 'allowlist' && !commandInList) return false;
+                if (commandMode === 'denylist' && commandInList) return false;
+            }
+
+            const scope = config.filterScope || 'both';
+            if (messageFilterCache.whitelist.length && !messageMatchesFilterList(text, username, messageFilterCache.whitelist, scope)) {
+                return false;
+            }
+
+            if (messageFilterCache.blacklist.length && messageMatchesFilterList(text, username, messageFilterCache.blacklist, scope)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        function getFloatingCullGraceMs(movementMode) {
+            if (movementMode === 'plaster' || movementMode === 'zoom') return 500;
+            if (movementMode === 'swing') return 1200;
+            return null;
+        }
+
+        function isRectVisible(rect, margin = 0) {
+            return rect.right > -margin &&
+                rect.left < window.innerWidth + margin &&
+                rect.bottom > -margin &&
+                rect.top < window.innerHeight + margin;
+        }
+
+        function stopFloatingCullLoopIfIdle() {
+            if (floatingMessages.size || !floatingCullTimer) return;
+            clearInterval(floatingCullTimer);
+            floatingCullTimer = null;
+        }
+
+        function untrackFloatingMessage(msg) {
+            floatingMessages.delete(msg);
+            stopFloatingCullLoopIfIdle();
+        }
+
+        function removeFloatingMessage(msg) {
+            if (!msg || msg.dataset.floatingRemoved === 'true') return;
+            msg.dataset.floatingRemoved = 'true';
+
+            if (msg.__floatingCleanupTimer) {
+                clearTimeout(msg.__floatingCleanupTimer);
+                msg.__floatingCleanupTimer = null;
+            }
+            if (msg.__messageLifetimeTimer) {
+                clearTimeout(msg.__messageLifetimeTimer);
+                msg.__messageLifetimeTimer = null;
+            }
+
+            untrackFloatingMessage(msg);
+            if (msg.parentNode) msg.parentNode.removeChild(msg);
+            activeMessages = Math.max(0, activeMessages - 1);
+        }
+
+        function cullOffscreenFloatingMessages() {
+            if (!floatingMessages.size) {
+                stopFloatingCullLoopIfIdle();
+                return;
+            }
+
+            const now = performance.now();
+            Array.from(floatingMessages).forEach((msg) => {
+                if (!msg.parentNode) {
+                    untrackFloatingMessage(msg);
+                    return;
+                }
+
+                const rect = msg.getBoundingClientRect();
+                if (isRectVisible(rect, FLOATING_CULL_MARGIN_PX)) {
+                    msg.__hasEnteredViewport = true;
+                    return;
+                }
+
+                const graceMs = msg.__floatingCullGraceMs;
+                if (msg.__hasEnteredViewport || (Number.isFinite(graceMs) && (now - msg.__floatingCreatedAt) > graceMs)) {
+                    removeFloatingMessage(msg);
+                }
+            });
+        }
+
+        function trackFloatingMessage(msg) {
+            if (!msg) return;
+            msg.__floatingCreatedAt = performance.now();
+            msg.__hasEnteredViewport = false;
+            msg.__floatingCullGraceMs = getFloatingCullGraceMs(msg.dataset.movementMode || 'scroll');
+            floatingMessages.add(msg);
+
+            if (!floatingCullTimer) {
+                floatingCullTimer = setInterval(cullOffscreenFloatingMessages, FLOATING_CULL_INTERVAL_MS);
+            }
+        }
+
+        function scheduleFloatingMessageCleanup(msg, speed) {
+            if (!msg) return;
+            const cleanupMs = getMessageLifetimeMs('niconico', speed) ?? Math.max(250, Math.round((speed + 0.5) * 1000));
+            msg.__floatingCleanupTimer = setTimeout(() => removeFloatingMessage(msg), cleanupMs);
+            trackFloatingMessage(msg);
+        }
+
+        function resetFloatingMessageTracking() {
+            floatingMessages.forEach((msg) => {
+                if (msg.__floatingCleanupTimer) clearTimeout(msg.__floatingCleanupTimer);
+                if (msg.__messageLifetimeTimer) clearTimeout(msg.__messageLifetimeTimer);
+            });
+            floatingMessages.clear();
+            if (floatingCullTimer) {
+                clearInterval(floatingCullTimer);
+                floatingCullTimer = null;
+            }
+        }
+
+        function scheduleLayoutMessageLifetime(msg, speed) {
+            const lifetimeMs = getMessageLifetimeMs('layout', speed);
+            if (!msg || !lifetimeMs) return;
+            if (msg.__messageLifetimeTimer) clearTimeout(msg.__messageLifetimeTimer);
+            msg.__messageLifetimeTimer = setTimeout(() => removeLayoutMessage(msg), lifetimeMs);
+        }
+
+        const EVENT_ENABLED_KEYS = {
+            follow: 'eventFollowEnabled',
+            sub: 'eventSubEnabled',
+            resub: 'eventResubEnabled',
+            giftsub: 'eventGiftsubEnabled',
+            giftbomb: 'eventGiftbombEnabled',
+            raid: 'eventRaidEnabled',
+            cheer: 'eventCheerEnabled'
+        };
+        const EMOJI_CLUSTER_REGEX = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u200D\uFE0F]/u;
+        const graphemeSegmenter = (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function')
+            ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+            : null;
+
+        function applyMatchedUsernameTheme(innerEl, usernameEl) {
+            if (!innerEl || !usernameEl) return;
+            const computed = window.getComputedStyle(innerEl);
+
+            MATCHED_USERNAME_STYLE_PROPS.forEach(([styleProp, computedProp]) => {
+                const value = computed[computedProp];
+                if (value) usernameEl.style[styleProp] = value;
+            });
+
+            if (!usernameEl.style.color) usernameEl.style.color = computed.color;
+            usernameEl.style.opacity = '1';
+        }
+
+        function refreshMatchedUsernameThemes() {
+            document.querySelectorAll('#niconico-container .user-theme-match, #emote-overlay-container .user-theme-match').forEach((msg) => {
+                const inner = msg.querySelector('.nico-inner');
+                const usernameEl = msg.querySelector('.nico-username');
+                if (inner && usernameEl) applyMatchedUsernameTheme(inner, usernameEl);
+            });
+        }
+
+        function splitGraphemes(text) {
+            if (!text) return [];
+            if (graphemeSegmenter) {
+                return Array.from(graphemeSegmenter.segment(text), (part) => part.segment);
+            }
+            return Array.from(text);
+        }
+
+        function isEmojiCluster(cluster) {
+            return !!cluster && EMOJI_CLUSTER_REGEX.test(cluster);
+        }
+
+        function isEmojiOnlyText(text) {
+            if (!text || !text.trim()) return false;
+            return splitGraphemes(text).every((cluster) => {
+                if (!cluster.trim()) return true;
+                return isEmojiCluster(cluster);
+            });
+        }
+
+        function buildTwitchEmoteUrl(emoteId) {
+            if (!emoteId) return '';
+            return `https://static-cdn.jtvnw.net/emoticons/v2/${emoteId}/default/dark/3.0`;
+        }
+
+        function normalizeEmoteRanges(rawEmotes) {
+            if (Array.isArray(rawEmotes)) return rawEmotes;
+            if (!rawEmotes || typeof rawEmotes !== 'object') return [];
+
+            const ranges = [];
+            Object.entries(rawEmotes).forEach(([emoteId, positions]) => {
+                (Array.isArray(positions) ? positions : []).forEach((range) => {
+                    const [startRaw, endRaw] = String(range || '').split('-');
+                    const startIndex = parseInt(startRaw, 10);
+                    const endIndex = parseInt(endRaw, 10);
+                    if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex)) return;
+                    ranges.push({ id: emoteId, startIndex, endIndex });
+                });
+            });
+            return ranges;
+        }
+
+        function extractRawChatFragments(extra) {
+            return extra?.messageFragments || extra?.fragments || extra?.message?.fragments || [];
+        }
+
+        function extractRawChatEmotes(flags, extra) {
+            return normalizeEmoteRanges(
+                extra?.messageEmotes ||
+                extra?.emotes ||
+                extra?.message?.emotes ||
+                flags?.emotes
+            );
+        }
+
+        function buildNormalizedRawChatData(text, displayName, color, flags, extra) {
+            const fragments = extractRawChatFragments(extra);
+            const emotes = extractRawChatEmotes(flags, extra);
+
+            return {
+                message: {
+                    message: text,
+                    displayName,
+                    color,
+                    fragments: Array.isArray(fragments) && fragments.length ? fragments : undefined,
+                    emotes: emotes.length ? emotes : undefined
+                },
+                emotes: emotes.length ? emotes : undefined,
+                flags,
+                extra
+            };
+        }
+
+        function normalizeEmoteFromFragment(fragment) {
+            const emoteId = fragment?.emote?.id || fragment?.id || fragment?.emoteId;
+            if (!emoteId && fragment?.type !== 'emote') return null;
+            return {
+                type: 'emote',
+                text: fragment?.text || fragment?.name || fragment?.emote?.name || '',
+                src: fragment?.imageUrl || fragment?.image || fragment?.url || buildTwitchEmoteUrl(emoteId)
+            };
+        }
+
+        function buildFragmentsFromRanges(text, rawEmotes) {
+            if (!text) return [];
+            const normalizedEmotes = normalizeEmoteRanges(rawEmotes);
+            if (!normalizedEmotes.length) return [];
+
+            const ranges = normalizedEmotes.map((item) => {
+                const start = Number.isFinite(item?.startIndex) ? item.startIndex
+                    : Number.isFinite(item?.start) ? item.start
+                    : Number.isFinite(item?.begin) ? item.begin
+                    : Number.isFinite(item?.from) ? item.from
+                    : null;
+                const endInclusive = Number.isFinite(item?.endIndex) ? item.endIndex
+                    : Number.isFinite(item?.end) ? item.end
+                    : Number.isFinite(item?.to) ? item.to
+                    : null;
+                if (!Number.isFinite(start) || !Number.isFinite(endInclusive)) return null;
+                const end = Math.min(text.length, endInclusive + 1);
+                if (start < 0 || end <= start) return null;
+                return {
+                    start,
+                    end,
+                    text: text.slice(start, end),
+                    src: item?.imageUrl || item?.image || item?.url || buildTwitchEmoteUrl(item?.id || item?.emoteId)
+                };
+            }).filter(Boolean).sort((a, b) => a.start - b.start);
+
+            if (!ranges.length) return [];
+
+            const fragments = [];
+            let cursor = 0;
+            ranges.forEach((range) => {
+                if (range.start > cursor) fragments.push({ type: 'text', text: text.slice(cursor, range.start) });
+                fragments.push({ type: 'emote', text: range.text, src: range.src });
+                cursor = Math.max(cursor, range.end);
+            });
+            if (cursor < text.length) fragments.push({ type: 'text', text: text.slice(cursor) });
+            return fragments.filter((fragment) => fragment.text);
+        }
+
+        function normalizeMessageFragments(text, rawData) {
+            const rawFragments = rawData?.message?.fragments;
+            if (Array.isArray(rawFragments) && rawFragments.length) {
+                return rawFragments.map((fragment) => {
+                    const emote = normalizeEmoteFromFragment(fragment);
+                    if (emote) return emote;
+                    return { type: 'text', text: fragment?.text || '' };
+                }).filter((fragment) => fragment.text);
+            }
+
+            const rangedFragments = buildFragmentsFromRanges(text, rawData?.message?.emotes || rawData?.emotes);
+            if (rangedFragments.length) return rangedFragments;
+            return text ? [{ type: 'text', text }] : [];
+        }
+
+        function tokenizeRichFragments(fragments) {
+            const segments = [];
+            fragments.forEach((fragment) => {
+                if (fragment.type === 'emote') {
+                    segments.push({ type: 'emote', text: fragment.text, src: fragment.src });
+                    return;
+                }
+
+                fragment.text.split(/(\s+)/).forEach((part) => {
+                    if (!part) return;
+                    if (!part.trim()) {
+                        segments.push({ type: 'space', text: part });
+                    } else if (isEmojiOnlyText(part)) {
+                        segments.push({ type: 'emoji', text: part });
+                    } else {
+                        segments.push({ type: 'text', text: part });
+                    }
+                });
+            });
+            return segments;
+        }
+
+        function analyzeMessageContent(text, rawData) {
+            const fragments = normalizeMessageFragments(text, rawData);
+            const isOnlyEmojiOrEmote = fragments.length > 0 && fragments.every((fragment) => {
+                if (fragment.type === 'emote') return true;
+                return !fragment.text.trim() || isEmojiOnlyText(fragment.text);
+            });
+
+            return {
+                isEmoteOnly: isOnlyEmojiOrEmote,
+                segments: isOnlyEmojiOrEmote ? tokenizeRichFragments(fragments) : [],
+            };
+        }
+
+        function renderRichContent(textContainer, messageAnalysis) {
+            textContainer.classList.add('emote-content');
+            messageAnalysis.segments.forEach((segment) => {
+                if (segment.type === 'space') {
+                    textContainer.appendChild(document.createTextNode(segment.text));
+                    return;
+                }
+
+                if (segment.type === 'emote' && segment.src) {
+                    const img = document.createElement('img');
+                    img.classList.add('nico-emote');
+                    img.src = segment.src;
+                    img.alt = segment.text || 'emote';
+                    img.decoding = 'async';
+                    img.loading = 'eager';
+                    textContainer.appendChild(img);
+                    return;
+                }
+
+                const span = document.createElement('span');
+                span.textContent = segment.text;
+                span.classList.add(segment.type === 'emoji' ? 'nico-emoji-glyph' : 'nico-emote-token');
+                textContainer.appendChild(span);
+            });
+        }
+
+        function positionFloatingMessage(msg, movementMode, speed) {
+            if (movementMode === 'scroll') {
+                const lane = getAvailableLane();
+                const laneH = config.fontSize * 1.6;
+                msg.style.top = `${lane * (laneH + LANE_PADDING) + 10}px`;
+                reserveLane(lane, speed * 1000);
+            } else if (movementMode === 'plaster') {
+                msg.style.top = `${Math.random() * 70 + 10}vh`;
+                msg.style.left = `${Math.random() * 60 + 10}vw`;
+            } else if (movementMode === 'float') {
+                msg.style.top = '0px';
+                msg.style.left = `${Math.random() * 80 + 10}vw`;
+            } else if (movementMode === 'zoom' || movementMode === 'swing') {
+                msg.style.top = `${Math.random() * 60 + 10}vh`;
+                msg.style.left = `${Math.random() * 60 + 10}vw`;
+            }
+        }
+
+        function captureLayoutPositions(container) {
+            if (!container) return null;
+            const positions = new Map();
+            Array.from(container.children).forEach((child) => {
+                if (child.classList?.contains('layout-exiting')) return;
+                positions.set(child, child.getBoundingClientRect());
+            });
+            return positions;
+        }
+
+        function getLayoutReflowAnimation(movementMode, dx, dy) {
+            if (movementMode === 'float') {
+                return {
+                    keyframes: [
+                        { transform: `translate(${dx}px, ${dy + 18}px)`, opacity: 0.9 },
+                        { transform: `translate(${dx * 0.16}px, ${dy * 0.16}px)`, opacity: 1 },
+                        { transform: 'translate(0, 0)', opacity: 1 }
+                    ],
+                    options: { duration: 340, easing: 'cubic-bezier(0.19, 1, 0.22, 1)' }
+                };
+            }
+
+            if (movementMode === 'plaster') {
+                return {
+                    keyframes: [
+                        { transform: `translate(${dx}px, ${dy}px) scale(0.94)`, opacity: 0.84 },
+                        { transform: 'translate(0, 0) scale(1.03)', opacity: 1 },
+                        { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+                    ],
+                    options: { duration: 260, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+                };
+            }
+
+            if (movementMode === 'zoom') {
+                return {
+                    keyframes: [
+                        { transform: `translate(${dx}px, ${dy}px) scale(0.9)`, opacity: 0.88 },
+                        { transform: 'translate(0, 0) scale(1.02)', opacity: 1 },
+                        { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+                    ],
+                    options: { duration: 300, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' }
+                };
+            }
+
+            if (movementMode === 'swing') {
+                return {
+                    keyframes: [
+                        { transform: `translate(${dx}px, ${dy}px) rotate(-5deg)`, opacity: 0.9 },
+                        { transform: 'translate(0, 0) rotate(3deg)', opacity: 1 },
+                        { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 }
+                    ],
+                    options: { duration: 380, easing: 'cubic-bezier(0.2, 1, 0.2, 1)' }
+                };
+            }
+
+            return {
+                keyframes: [
+                    { transform: `translate(${dx}px, ${dy}px)`, opacity: 0.92 },
+                    { transform: 'translate(0, 0)', opacity: 1 }
+                ],
+                options: { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+            };
+        }
+
+        function animateLayoutReflow(container, previousPositions, movementMode) {
+            if (!container || !previousPositions) return;
+
+            Array.from(container.children).forEach((child) => {
+                const previous = previousPositions.get(child);
+                if (!previous || typeof child.animate !== 'function') return;
+                if (child.classList?.contains('layout-exiting')) return;
+
+                const current = child.getBoundingClientRect();
+                const dx = previous.left - current.left;
+                const dy = previous.top - current.top;
+                if (!dx && !dy) return;
+
+                const animation = getLayoutReflowAnimation(movementMode, dx, dy);
+                if (child.__layoutReflowAnimation) child.__layoutReflowAnimation.cancel();
+
+                const reflowAnimation = child.animate(animation.keyframes, {
+                    fill: 'both',
+                    ...animation.options
+                });
+                child.__layoutReflowAnimation = reflowAnimation;
+
+                const clearAnimationRef = () => {
+                    if (child.__layoutReflowAnimation === reflowAnimation) child.__layoutReflowAnimation = null;
+                };
+
+                reflowAnimation.addEventListener('finish', clearAnimationRef, { once: true });
+                reflowAnimation.addEventListener('cancel', clearAnimationRef, { once: true });
+            });
+        }
+
+        function attachLayoutEntryAnimation(msg) {
+            const movementMode = msg.dataset.movementMode;
+            if (!movementMode) return;
+
+            const entryClass = `layout-entry-${movementMode}`;
+            msg.classList.add(entryClass);
+
+            const onAnimationEnd = (event) => {
+                if (event.target !== msg) return;
+                msg.classList.remove(entryClass);
+                msg.removeEventListener('animationend', onAnimationEnd);
+            };
+
+            msg.addEventListener('animationend', onAnimationEnd);
+        }
+
+        function removeLayoutMessage(msg) {
+            if (!msg || msg.classList.contains('layout-exiting')) return;
+
+            const movementMode = msg.dataset.movementMode || 'scroll';
+            const layoutExitMode = config.layoutExitMode || 'motion';
+            const exitClass = layoutExitMode === 'fade' ? 'layout-exit-fade' : `layout-exit-${movementMode}`;
+            const exitDurationMs = getLayoutExitDurationMs();
+            const container = msg.parentNode;
+            let removed = false;
+
+            const finalizeRemoval = () => {
+                if (removed) return;
+                removed = true;
+                if (msg.__messageLifetimeTimer) {
+                    clearTimeout(msg.__messageLifetimeTimer);
+                    msg.__messageLifetimeTimer = null;
+                }
+                const previousPositions = captureLayoutPositions(container);
+                if (msg.parentNode) msg.parentNode.removeChild(msg);
+                animateLayoutReflow(container, previousPositions, movementMode);
+                activeMessages = Math.max(0, activeMessages - 1);
+            };
+
+            if (layoutExitMode === 'none') {
+                finalizeRemoval();
+                return;
+            }
+
+            msg.classList.remove(`layout-entry-${movementMode}`);
+            msg.style.setProperty('--layout-exit-duration', `${exitDurationMs}ms`);
+            msg.classList.add('layout-exiting', exitClass);
+
+            const onAnimationEnd = (event) => {
+                if (event.target !== msg) return;
+                msg.removeEventListener('animationend', onAnimationEnd);
+                finalizeRemoval();
+            };
+
+            msg.addEventListener('animationend', onAnimationEnd);
+            setTimeout(finalizeRemoval, exitDurationMs + 80);
+        }
+
+        function trimLayoutHistory(container) {
+            const historyLimit = Math.max(1, config.maxMessages);
+            while (container.children.length > historyLimit) {
+                const oldest = Array.from(container.children).find((child) => !child.classList.contains('layout-exiting'));
+                if (!oldest) break;
+                removeLayoutMessage(oldest);
+            }
+        }
+
+        function isEventEnabled(eventType) {
+            const configKey = EVENT_ENABLED_KEYS[eventType];
+            return configKey ? config[configKey] !== false : true;
+        }
 
         // --- Spawn a message ---
-        function spawnMessage(text, username, userColor, extraClasses) {
-            if (activeMessages >= config.maxMessages) return;
-            const container = document.getElementById('niconico-container');
+        function spawnMessage(text, username, userColor, extraClasses, messageOptions = {}) {
+            if (!shouldRenderMessage(text, username, extraClasses, messageOptions)) return;
+
+            const messageAnalysis = messageOptions.analysis || analyzeMessageContent(text, messageOptions.rawData);
+            const emoteMode = messageAnalysis.isEmoteOnly ? config.emoteMode : 'bubble';
+            const useSeparateFlow = messageAnalysis.isEmoteOnly && emoteMode === 'separate';
+            const layoutMode = useSeparateFlow ? 'niconico' : config.chatDisplayMode;
+            const movementMode = useSeparateFlow ? config.emoteMovementMode : config.movementMode;
+            const container = document.getElementById(useSeparateFlow ? 'emote-overlay-container' : 'niconico-container');
+            const usesLayoutFlow = !useSeparateFlow && layoutMode !== 'niconico';
+            const movementClass = usesLayoutFlow ? null : `move-${movementMode}`;
+
+            if (layoutMode === 'niconico' && activeMessages >= config.maxMessages) return;
             if (!container) return;
 
+            const previousPositions = usesLayoutFlow ? captureLayoutPositions(container) : null;
+
             const msg = document.createElement('div');
-            msg.classList.add('nico-msg', `move-${config.movementMode}`, `shadow-${config.textShadow}`, `bubble-${config.bubbleStyle}`);
+            msg.classList.add('nico-msg', `shadow-${config.textShadow}`, `bubble-${config.bubbleStyle}`);
+            if (movementClass) msg.classList.add(movementClass);
+            if (messageAnalysis.isEmoteOnly) {
+                msg.classList.add('emote-message', `emote-mode-${emoteMode}`);
+                msg.style.setProperty('--nico-emote-scale', `${config.emoteScale}`);
+            }
+            msg.dataset.movementMode = movementMode;
             if (extraClasses) extraClasses.forEach(c => msg.classList.add(c));
 
             const speed = config.scrollSpeed + (Math.random() * 2 - 1);
+            const tailFadeDuration = getTailFadeDurationSeconds(speed);
             msg.style.setProperty('--nico-speed', `${speed}s`);
+            msg.style.setProperty('--nico-tail-fade-duration', `${tailFadeDuration}s`);
+            msg.style.setProperty('--nico-tail-fade-delay', `${Math.max(0, speed - tailFadeDuration)}s`);
             msg.style.setProperty('--nico-font-size', `${config.fontSize}px`);
             msg.style.setProperty('--nico-font', config.fontFamily);
             msg.style.setProperty('--nico-border-width', `${config.borderThickness}px`);
+            msg.style.setProperty('--nico-target-opacity', config.opacity);
             msg.style.opacity = config.opacity;
 
             // Strategy: pick from specific pool -> fall back to general pool -> fall back to static config color
@@ -2249,27 +3495,13 @@
 
             const pickText = getPoolColor('colorPoolText', config.textColor);
             msg.style.setProperty('--nico-color', userColor || pickText || '#FFFFFF');
-
-            if (config.movementMode === 'scroll' && config.chatDisplayMode === 'niconico') {
-                const lane = getAvailableLane();
-                const laneH = config.fontSize * 1.6;
-                msg.style.top = `${lane * (laneH + LANE_PADDING) + 10}px`;
-                reserveLane(lane, speed * 1000);
-            } else if (config.movementMode === 'plaster' && config.chatDisplayMode === 'niconico') {
-                msg.style.top = `${Math.random() * 70 + 10}vh`;
-                msg.style.left = `${Math.random() * 60 + 10}vw`;
-            } else if (config.movementMode === 'float' && config.chatDisplayMode === 'niconico') {
-                msg.style.top = `0px`;
-                msg.style.left = `${Math.random() * 80 + 10}vw`;
-            } else if ((config.movementMode === 'zoom' || config.movementMode === 'swing') && config.chatDisplayMode === 'niconico') {
-                msg.style.top = `${Math.random() * 60 + 10}vh`;
-                msg.style.left = `${Math.random() * 60 + 10}vw`;
-            }
+            if (layoutMode === 'niconico') positionFloatingMessage(msg, movementMode, speed);
 
             const inner = document.createElement('span');
             inner.classList.add('nico-inner');
             
             let badgeSpan = null;
+            let usernameEl = null;
             if (config.showUsername !== 'hidden' && username) {
                 msg.classList.add(`user-layout-${config.showUsername}`);
                 msg.classList.add(`user-theme-${config.userTheme}`);
@@ -2277,6 +3509,7 @@
                 const uSpan = document.createElement('span');
                 uSpan.classList.add('nico-username');
                 uSpan.textContent = config.showUsername === 'inline' ? username + ':' : username;
+                usernameEl = uSpan;
                 
                 let uColor = '#FFFFFF';
                 if (config.userColorSource === 'twitch' && userColor) uColor = userColor;
@@ -2285,7 +3518,7 @@
                 else if (config.userTheme === 'light' && config.userColorSource === 'twitch') uColor = userColor || '#111111';
                 
                 uSpan.style.setProperty('--user-color', uColor);
-                if (config.userTheme !== 'light' && config.userTheme !== 'dark' && config.userTheme !== 'clear' || config.userColorSource === 'twitch') {
+                if ((config.userTheme !== 'light' && config.userTheme !== 'dark' && config.userTheme !== 'clear') || config.userColorSource === 'twitch') {
                      uSpan.style.color = uColor;
                 }
                 
@@ -2301,7 +3534,9 @@
             const textContainer = document.createElement('span');
             textContainer.classList.add('nico-text-content');
 
-            if (config.animationMode === 'letter') {
+            if (messageAnalysis.isEmoteOnly) {
+                renderRichContent(textContainer, messageAnalysis);
+            } else if (config.animationMode === 'letter') {
                 text.split('').forEach((ch, i) => {
                     const s = document.createElement('span');
                     s.classList.add('nico-char');
@@ -2333,35 +3568,27 @@
             if (badgeSpan) msg.appendChild(badgeSpan);
             
             // Container class updates & Animation mappings
-            if (config.chatDisplayMode === 'vertical') {
+            if (usesLayoutFlow && config.chatDisplayMode === 'vertical') {
                 container.className = 'layout-vertical';
-                msg.classList.add(`move-${config.movementMode}`);
-            } else if (config.chatDisplayMode === 'horizontal') {
+                attachLayoutEntryAnimation(msg);
+            } else if (usesLayoutFlow && config.chatDisplayMode === 'horizontal') {
                 container.className = 'layout-horizontal';
-                msg.classList.add(`move-${config.movementMode}`);
-            } else {
+                attachLayoutEntryAnimation(msg);
+            } else if (!useSeparateFlow) {
                 container.className = '';
             }
             
             container.appendChild(msg);
+            if (config.userTheme === 'match' && usernameEl) applyMatchedUsernameTheme(inner, usernameEl);
+            animateLayoutReflow(container, previousPositions, movementMode);
             activeMessages++;
 
             // Cleanup Logic
-            if (config.chatDisplayMode === 'niconico') {
-                setTimeout(() => {
-                    if (msg.parentNode) msg.parentNode.removeChild(msg);
-                    activeMessages--;
-                }, (speed + 0.5) * 1000);
+            if (layoutMode === 'niconico') {
+                scheduleFloatingMessageCleanup(msg, speed);
             } else {
-                // Keep history limited to roughly 40 items for vertical/horizontal
-                setTimeout(() => {
-                    if (container.children.length > 40) {
-                        try {
-                            container.removeChild(container.firstChild);
-                            activeMessages--;
-                        } catch(e) {}
-                    }
-                }, 500); // Check length slightly after append
+                scheduleLayoutMessageLifetime(msg, speed);
+                trimLayoutHistory(container);
             }
         }
 
@@ -2401,7 +3628,7 @@
                     <div class="alert-icon">${meta.icon}</div>
                     <div class="alert-title">${meta.title}</div>
                     <div class="alert-message">${message}</div>
-                    ${subtitle ? `<div class="alert-sub">${subtitle}</div>` : ''}
+                    ${subtitle ? `<div class="alert-subtitle">${subtitle}</div>` : ''}
                 </div>
             `;
 
@@ -2419,12 +3646,12 @@
 
         // --- Unified Stream Event Handler ---
         function handleStreamEvent(eventType, message, subtitle, scrollColor) {
-            if (config.eventMode === 'off') return;
+            if (config.eventMode === 'off' || !isEventEnabled(eventType)) return;
 
             if (config.eventMode === 'scroll' || config.eventMode === 'both') {
                 const meta = EVENT_META[eventType] || EVENT_META.follow;
                 const scrollText = `${meta.icon} ${message}`;
-                spawnMessage(scrollText, null, scrollColor || meta.color, ['nico-event', `event-${eventType}`]);
+                spawnMessage(scrollText, null, scrollColor || meta.color, ['nico-event', `event-${eventType}`], { bypassFilters: true });
             }
 
             if (config.eventMode === 'alert' || config.eventMode === 'both') {
@@ -2443,7 +3670,8 @@
             'lets gooooo', 'this is amazing', 'lol nice one', 'POG POG POG',
             'hype train!!!', 'wow that was insane', 'hello from the chat!',
             'first time here!', 'bruh moment', 'EZ Clap', 'sheeeesh',
-            'W stream W chat', 'KEKW', 'monkaS', 'actual god gamer'
+            'W stream W chat', 'KEKW', 'monkaS', 'actual god gamer',
+            '🔥🔥🔥', '👏👏👏', '😂😂😂', '✨💫✨', '😍', '🫶🫶'
         ];
         const TEST_COLORS = [
             '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD',
@@ -2467,25 +3695,207 @@
             return TEST_USERNAMES[Math.floor(Math.random() * TEST_USERNAMES.length)];
         }
 
+        // ============================================================
+        //  MESSAGE INGEST + SOURCES
+        // ============================================================
+        function ingestChatMessage(message) {
+            if (!message) return;
+
+            const text = typeof message.text === 'string' ? message.text : '';
+            if (!text.trim()) return;
+
+            if (text.trim().toLowerCase() === config.testCommand.toLowerCase()) {
+                spawnTestMessages(8);
+                return;
+            }
+
+            spawnMessage(text, message.username || 'Anon', message.userColor || null, message.extraClasses || null, {
+                rawData: message.rawData,
+                analysis: message.analysis,
+                bypassFilters: !!message.bypassFilters,
+                source: message.source || config.sourceMode
+            });
+        }
+
+        function stopDemoMode() {
+            if (sourceState.demoTimer) {
+                clearInterval(sourceState.demoTimer);
+                sourceState.demoTimer = null;
+            }
+            if (sourceState.mode === 'demo') sourceState.mode = '';
+        }
+
+        function startDemoMode() {
+            if (sourceState.mode === 'demo' && sourceState.demoTimer) {
+                setConnectionStatus('⬤ Demo mode active', 'status-connected');
+                return;
+            }
+
+            stopDemoMode();
+            sourceState.mode = 'demo';
+            setConnectionStatus('⬤ Demo mode active', 'status-connected');
+            spawnTestMessages(4);
+            sourceState.demoTimer = setInterval(() => {
+                ingestChatMessage({
+                    text: TEST_MESSAGES[Math.floor(Math.random() * TEST_MESSAGES.length)],
+                    username: randomUser(),
+                    userColor: TEST_COLORS[Math.floor(Math.random() * TEST_COLORS.length)],
+                    source: 'demo'
+                });
+            }, DEMO_MESSAGE_INTERVAL_MS);
+        }
+
+        function disconnectDirectTwitchChat() {
+            stopDemoMode();
+            sourceState.directRecentMessageIds.clear();
+            sourceState.directChannel = '';
+            sourceState.directConnected = false;
+            sourceState.directConnecting = false;
+            if (sourceState.mode === 'twitch-direct') sourceState.mode = '';
+            if (typeof ComfyJS !== 'undefined' && typeof ComfyJS.Disconnect === 'function') {
+                try { ComfyJS.Disconnect(); } catch (err) { console.warn('Failed to disconnect ComfyJS cleanly', err); }
+            }
+            if (typeof ComfyJS !== 'undefined') {
+                ComfyJS.onConnected = null;
+                ComfyJS.onError = null;
+                ComfyJS.onChat = null;
+                ComfyJS.onCommand = null;
+            }
+        }
+
+        function connectToDirectTwitchChat() {
+            if (typeof ComfyJS === 'undefined') {
+                setConnectionStatus('⬤ Twitch Direct unavailable (CDN not loaded)', 'status-disconnected');
+                return;
+            }
+
+            const channel = normalizeChannelName(config.twitchChannel);
+            if (!channel) {
+                if (sourceState.directChannel) disconnectDirectTwitchChat();
+                setConnectionStatus('⬤ Enter a Twitch channel for direct mode', 'status-disconnected');
+                return;
+            }
+
+            if (sourceState.directChannel && sourceState.directChannel !== channel) disconnectDirectTwitchChat();
+            if (sourceState.directChannel === channel) {
+                if (sourceState.directConnected) {
+                    sourceState.mode = 'twitch-direct';
+                    setConnectionStatus(`⬤ Direct Twitch connected (#${channel})`, 'status-connected');
+                    return;
+                }
+                if (sourceState.directConnecting) {
+                    sourceState.mode = 'twitch-direct';
+                    setConnectionStatus(`⬤ Connecting directly to #${channel}...`, 'status-connecting');
+                    return;
+                }
+            }
+
+            sourceState.directRecentMessageIds.clear();
+            sourceState.directChannel = channel;
+            sourceState.directConnected = false;
+            sourceState.directConnecting = true;
+            sourceState.mode = 'twitch-direct';
+
+            ComfyJS.onConnected = () => {
+                if (config.sourceMode !== 'twitch-direct') return;
+                sourceState.directConnecting = false;
+                sourceState.directConnected = true;
+                setConnectionStatus(`⬤ Direct Twitch connected (#${channel})`, 'status-connected');
+            };
+
+            ComfyJS.onError = (err) => {
+                if (config.sourceMode !== 'twitch-direct') return;
+                console.error('Direct Twitch chat error:', err);
+                sourceState.directConnecting = false;
+                sourceState.directConnected = false;
+                setConnectionStatus(`⬤ Direct Twitch error (#${channel})`, 'status-disconnected');
+            };
+
+            ComfyJS.onChat = (user, message, flags, self, extra) => {
+                if (config.sourceMode !== 'twitch-direct' || self) return;
+
+                const messageId = extra?.id || extra?.messageId || extra?.userState?.id;
+                if (markDirectMessageSeen(messageId)) return;
+
+                ingestChatMessage({
+                    text: message,
+                    username: extra?.displayName || user || 'Anon',
+                    userColor: extra?.userColor || flags?.color || null,
+                    rawData: buildNormalizedRawChatData(
+                        message,
+                        extra?.displayName || user || 'Anon',
+                        extra?.userColor || flags?.color || null,
+                        flags,
+                        extra
+                    ),
+                    source: 'twitch-direct'
+                });
+            };
+
+            ComfyJS.onCommand = (user, command, message, flags, extra) => {
+                if (config.sourceMode !== 'twitch-direct') return;
+
+                const prefix = (config.commandPrefix || '!').trim() || '!';
+                const fullText = `${prefix}${command}${message ? ` ${message}` : ''}`;
+                const messageId = extra?.id || extra?.messageId || extra?.userState?.id;
+                if (markDirectMessageSeen(messageId)) return;
+
+                ingestChatMessage({
+                    text: fullText,
+                    username: extra?.displayName || user || 'Anon',
+                    userColor: extra?.userColor || flags?.color || null,
+                    rawData: buildNormalizedRawChatData(
+                        fullText,
+                        extra?.displayName || user || 'Anon',
+                        extra?.userColor || flags?.color || null,
+                        flags,
+                        extra
+                    ),
+                    source: 'twitch-direct'
+                });
+            };
+
+            setConnectionStatus(`⬤ Connecting directly to #${channel}...`, 'status-connecting');
+            ComfyJS.Init(channel);
+        }
+
+        function activateSourceMode() {
+            if (config.sourceMode !== 'demo') stopDemoMode();
+            if (config.sourceMode !== 'twitch-direct' && sourceState.directChannel) disconnectDirectTwitchChat();
+
+            if (config.sourceMode === 'demo') {
+                startDemoMode();
+                return;
+            }
+
+            if (config.sourceMode === 'twitch-direct') {
+                connectToDirectTwitchChat();
+                return;
+            }
+
+            sourceState.mode = 'streamerbot';
+            connectToStreamerBot();
+        }
+
         // --- Streamer.bot WebSocket Connection ---
         let sbClient = null;
 
         async function connectToStreamerBot() {
-            const statusEl = document.getElementById('connection-status');
-
-            if (typeof StreamerbotClient === 'undefined') {
-                console.warn('StreamerbotClient not loaded — running in offline/test mode');
-                if (statusEl) {
-                    statusEl.textContent = '⬤ Offline mode (CDN not loaded)';
-                    statusEl.className = 'status-disconnected';
-                }
+            if (sbClient) {
+                const statusText = sourceState.streamerbotConnected
+                    ? `⬤ Connected (${config.sbHost}:${config.sbPort})`
+                    : '⬤ Connecting to Streamer.bot...';
+                setConnectionStatus(statusText, sourceState.streamerbotConnected ? 'status-connected' : 'status-connecting');
                 return;
             }
 
-            if (statusEl) {
-                statusEl.textContent = '⬤ Connecting to Streamer.bot...';
-                statusEl.className = 'status-connecting';
+            if (typeof StreamerbotClient === 'undefined') {
+                console.warn('StreamerbotClient not loaded — running in offline/test mode');
+                if (config.sourceMode === 'streamerbot') setConnectionStatus('⬤ Offline mode (CDN not loaded)', 'status-disconnected');
+                return;
             }
+
+            if (config.sourceMode === 'streamerbot') setConnectionStatus('⬤ Connecting to Streamer.bot...', 'status-connecting');
 
             try {
                 sbClient = new StreamerbotClient({
@@ -2506,45 +3916,39 @@
                     },
                     onConnect: () => {
                         console.log('✅ Connected to Streamer.bot');
-                        if (statusEl) {
-                            statusEl.textContent = `⬤ Connected (${config.sbHost}:${config.sbPort})`;
-                            statusEl.className = 'status-connected';
-                        }
+                        sourceState.streamerbotConnected = true;
+                        if (config.sourceMode === 'streamerbot') setConnectionStatus(`⬤ Connected (${config.sbHost}:${config.sbPort})`, 'status-connected');
                     },
                     onDisconnect: () => {
                         console.log('❌ Disconnected from Streamer.bot');
-                        if (statusEl) {
-                            statusEl.textContent = '⬤ Disconnected — will retry...';
-                            statusEl.className = 'status-disconnected';
-                        }
+                        sourceState.streamerbotConnected = false;
+                        if (config.sourceMode === 'streamerbot') setConnectionStatus('⬤ Disconnected — will retry...', 'status-disconnected');
                     },
                     onError: (err) => {
                         console.error('Streamer.bot WS error:', err);
-                        if (statusEl) {
-                            statusEl.textContent = '⬤ Connection error — retrying...';
-                            statusEl.className = 'status-disconnected';
-                        }
+                        sourceState.streamerbotConnected = false;
+                        if (config.sourceMode === 'streamerbot') setConnectionStatus('⬤ Connection error — retrying...', 'status-disconnected');
                     },
                     retries: -1
                 });
 
                 // --- Chat Messages ---
                 sbClient.on('Twitch.ChatMessage', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const data = payload.data;
                     if (!data) return;
-                    const text = data.message?.message || data.text || '';
-                    const username = data.message?.displayName || data.user?.name || 'Anon';
-                    const userColor = data.message?.color || data.user?.color || null;
-
-                    if (text.trim().toLowerCase() === config.testCommand.toLowerCase()) {
-                        spawnTestMessages(8);
-                        return;
-                    }
-                    spawnMessage(text, username, userColor);
+                    ingestChatMessage({
+                        text: data.message?.message || data.text || '',
+                        username: data.message?.displayName || data.user?.name || 'Anon',
+                        userColor: data.message?.color || data.user?.color || null,
+                        rawData: data,
+                        source: 'streamerbot'
+                    });
                 });
 
                 // --- Follow ---
                 sbClient.on('Twitch.Follow', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
                     handleStreamEvent('follow', name, 'just followed!');
@@ -2552,6 +3956,7 @@
 
                 // --- Sub ---
                 sbClient.on('Twitch.Sub', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
                     const tier = d?.tier || d?.sub_tier || '1000';
@@ -2561,6 +3966,7 @@
 
                 // --- ReSub ---
                 sbClient.on('Twitch.ReSub', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
                     const months = d?.cumulativeMonths || d?.cumulative_months || '?';
@@ -2571,6 +3977,7 @@
 
                 // --- Gift Sub ---
                 sbClient.on('Twitch.GiftSub', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const gifter = d?.user_name || d?.userName || d?.user?.name || 'Someone';
                     const recipient = d?.recipient_user_name || d?.recipientUserName || 'a viewer';
@@ -2579,6 +3986,7 @@
 
                 // --- Gift Bomb ---
                 sbClient.on('Twitch.GiftBomb', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const gifter = d?.user_name || d?.userName || d?.user?.name || 'Someone';
                     const count = d?.gifts || d?.total_gifts || d?.totalGifts || '?';
@@ -2589,6 +3997,7 @@
 
                 // --- Raid ---
                 sbClient.on('Twitch.Raid', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const from = d?.from_broadcaster_user_name || d?.fromBroadcasterUserName || d?.user?.name || 'Someone';
                     const viewers = d?.viewers || d?.viewer_count || '?';
@@ -2597,6 +4006,7 @@
 
                 // --- Cheer ---
                 sbClient.on('Twitch.Cheer', (payload) => {
+                    if (config.sourceMode !== 'streamerbot') return;
                     const d = payload.data;
                     const name = d?.user_name || d?.userName || d?.user?.name || 'Someone';
                     const bits = d?.bits || d?.bit_count || '?';
@@ -2607,10 +4017,8 @@
 
             } catch (err) {
                 console.error('Failed to initialize Streamer.bot client:', err);
-                if (statusEl) {
-                    statusEl.textContent = '⬤ Failed to connect';
-                    statusEl.className = 'status-disconnected';
-                }
+                sourceState.streamerbotConnected = false;
+                if (config.sourceMode === 'streamerbot') setConnectionStatus('⬤ Failed to connect', 'status-disconnected');
             }
         }
 
@@ -2621,11 +4029,23 @@
                 urlParams.get('obs') === 'true';
         }
 
+        function applyRuntimeConfig() {
+            loadFont();
+            applyExternalThemeCss();
+            rebuildMessageFilterCache();
+            initLanes();
+            refreshMatchedUsernameThemes();
+            activateSourceMode();
+        }
+
         // --- Update UI disabled states based on selections ---
         function updatePanelVisibility() {
+            const sourceMode = document.getElementById('ctrl-source-mode')?.value;
             const displayMode = document.getElementById('ctrl-display-mode')?.value;
             const userShow = document.getElementById('ctrl-username')?.value;
-            const userTheme = document.getElementById('ctrl-user-theme')?.value;
+            const emoteMode = document.getElementById('ctrl-emote-mode')?.value;
+            const layoutExitMode = document.getElementById('ctrl-layout-exit')?.value;
+            const commandMode = document.getElementById('ctrl-command-mode')?.value;
 
             // 1. Movement is disabled in static modes if it's not a supported pop-in animation
             const moveContainer = document.getElementById('ctrl-movement')?.parentElement;
@@ -2633,6 +4053,38 @@
                 // In Vertical/Horizontal, "Scroll" becomes "Slide In Side", "Float" becomes "Slide Up"
                 // They all still vaguely work as pop-in animations, so we don't strictly disable them,
                 // but we could. For now, we leave Movement enabled for all.
+            }
+
+            const layoutExitContainer = document.getElementById('ctrl-layout-exit')?.parentElement;
+            if (layoutExitContainer) {
+                if (displayMode === 'niconico') layoutExitContainer.classList.add('disabled-field');
+                else layoutExitContainer.classList.remove('disabled-field');
+            }
+
+            const layoutExitDurationContainer = document.getElementById('ctrl-layout-exit-duration')?.parentElement;
+            if (layoutExitDurationContainer) {
+                if (displayMode === 'niconico' || layoutExitMode === 'none') layoutExitDurationContainer.classList.add('disabled-field');
+                else layoutExitDurationContainer.classList.remove('disabled-field');
+            }
+
+            const tailFadeContainer = document.getElementById('ctrl-tail-fade-duration')?.parentElement;
+            if (tailFadeContainer) {
+                if (displayMode === 'niconico' || emoteMode === 'separate') tailFadeContainer.classList.remove('disabled-field');
+                else tailFadeContainer.classList.add('disabled-field');
+            }
+
+            const twitchChannelContainer = document.getElementById('ctrl-twitch-channel')?.parentElement;
+            if (twitchChannelContainer) {
+                if (sourceMode === 'twitch-direct') twitchChannelContainer.classList.remove('disabled-field');
+                else twitchChannelContainer.classList.add('disabled-field');
+            }
+
+            const commandPrefixContainer = document.getElementById('ctrl-command-prefix')?.parentElement;
+            const commandListContainer = document.getElementById('ctrl-command-list')?.parentElement;
+            if (commandPrefixContainer) commandPrefixContainer.classList.remove('disabled-field');
+            if (commandListContainer) {
+                if (commandMode === 'allowlist' || commandMode === 'denylist') commandListContainer.classList.remove('disabled-field');
+                else commandListContainer.classList.add('disabled-field');
             }
 
             // 2. Username Dependent Fields
@@ -2652,6 +4104,12 @@
                 // If user theme is NOT 'match', 'dark', 'light', or 'clear', color picker might override.
                 // But specifically if user color source is 'twitch' and theme is 'match', it's active.
             }
+
+            const emoteMovementContainer = document.getElementById('ctrl-emote-movement')?.parentElement;
+            if (emoteMovementContainer) {
+                if (emoteMode === 'separate') emoteMovementContainer.classList.remove('disabled-field');
+                else emoteMovementContainer.classList.add('disabled-field');
+            }
         }
 
         // --- Apply config from test panel controls ---
@@ -2659,8 +4117,18 @@
             const panel = document.getElementById('test-panel');
             if (!panel || panel.style.display === 'none') return;
 
+            config.sourceMode = document.getElementById('ctrl-source-mode').value;
+            config.twitchChannel = normalizeChannelName(document.getElementById('ctrl-twitch-channel').value);
             config.chatDisplayMode = document.getElementById('ctrl-display-mode').value;
             config.movementMode = document.getElementById('ctrl-movement').value;
+            const messageLifetime = document.getElementById('ctrl-message-lifetime');
+            if (messageLifetime) config.messageLifetime = parseFloat(messageLifetime.value);
+            const layoutExit = document.getElementById('ctrl-layout-exit');
+            if (layoutExit) config.layoutExitMode = layoutExit.value;
+            const layoutExitDuration = document.getElementById('ctrl-layout-exit-duration');
+            if (layoutExitDuration) config.layoutExitDuration = parseFloat(layoutExitDuration.value);
+            const tailFadeDuration = document.getElementById('ctrl-tail-fade-duration');
+            if (tailFadeDuration) config.tailFadeDuration = parseFloat(tailFadeDuration.value);
             config.bubbleStyle = document.getElementById('ctrl-bubble').value;
             config.animationMode = document.getElementById('ctrl-anim').value;
             config.textShadow = document.getElementById('ctrl-shadow').value;
@@ -2677,8 +4145,33 @@
             if (ucolor) config.userColorSource = ucolor.value;
             const usize = document.getElementById('ctrl-usersize');
             if (usize) config.userSize = parseFloat(usize.value);
+            const filterScope = document.getElementById('ctrl-filter-scope');
+            if (filterScope) config.filterScope = filterScope.value;
+            const messageWhitelist = document.getElementById('ctrl-message-whitelist');
+            if (messageWhitelist) config.messageWhitelist = messageWhitelist.value;
+            const messageBlacklist = document.getElementById('ctrl-message-blacklist');
+            if (messageBlacklist) config.messageBlacklist = messageBlacklist.value;
+            const commandMode = document.getElementById('ctrl-command-mode');
+            if (commandMode) config.commandMode = commandMode.value;
+            const commandPrefix = document.getElementById('ctrl-command-prefix');
+            if (commandPrefix) config.commandPrefix = commandPrefix.value.trim() || '!';
+            const commandList = document.getElementById('ctrl-command-list');
+            if (commandList) config.commandList = commandList.value;
+            const emoteMode = document.getElementById('ctrl-emote-mode');
+            if (emoteMode) config.emoteMode = emoteMode.value;
+            const emoteScale = document.getElementById('ctrl-emote-scale');
+            if (emoteScale) config.emoteScale = parseFloat(emoteScale.value);
+            const emoteMovement = document.getElementById('ctrl-emote-movement');
+            if (emoteMovement) config.emoteMovementMode = emoteMovement.value;
             config.eventMode = document.getElementById('ctrl-eventmode').value;
             config.alertDuration = parseFloat(document.getElementById('ctrl-alertduration').value);
+            config.eventFollowEnabled = !!document.getElementById('ctrl-evt-follow')?.checked;
+            config.eventSubEnabled = !!document.getElementById('ctrl-evt-sub')?.checked;
+            config.eventResubEnabled = !!document.getElementById('ctrl-evt-resub')?.checked;
+            config.eventGiftsubEnabled = !!document.getElementById('ctrl-evt-giftsub')?.checked;
+            config.eventGiftbombEnabled = !!document.getElementById('ctrl-evt-giftbomb')?.checked;
+            config.eventRaidEnabled = !!document.getElementById('ctrl-evt-raid')?.checked;
+            config.eventCheerEnabled = !!document.getElementById('ctrl-evt-cheer')?.checked;
 
             const pmId = document.getElementById('ctrl-primary');
             if (pmId && pmId.value) config.primaryColor = pmId.value;
@@ -2693,6 +4186,9 @@
             if (tcId && tcId.value) config.textColor = tcId.value;
             else config.textColor = '';
 
+            const themeCssUrl = document.getElementById('ctrl-theme-css-url');
+            config.themeCssUrl = themeCssUrl ? themeCssUrl.value.trim() : '';
+
             // Color pools
             ['colorpool', 'colorpoolprimary', 'colorpoolaccent', 'colorpooltext'].forEach(key => {
                 const el = document.getElementById(`ctrl-${key}`);
@@ -2704,24 +4200,26 @@
 
             // Custom font URL
             const fontUrlVal = document.getElementById('ctrl-fonturl').value.trim();
-            if (fontUrlVal && fontUrlVal !== config.fontUrl) {
-                config.fontUrl = fontUrlVal;
-                fontLoaded = false;
-                loadFont();
-            }
+            config.fontUrl = fontUrlVal;
 
             updatePanelVisibility();
-            initLanes();
+            applyRuntimeConfig();
             saveConfigToStorage();
         }
 
         // --- Default config snapshot for reset ---
         const DEFAULT_CONFIG = {
+            sourceMode: 'streamerbot', twitchChannel: '',
             chatDisplayMode: 'niconico',
-            scrollSpeed: 8, fontSize: 32, fontFamily: 'Arial Black', fontUrl: '',
+            scrollSpeed: 8, messageLifetime: 0, fontSize: 32, fontFamily: 'Arial Black', fontUrl: '', themeCssUrl: '',
             textColor: '', textShadow: 'heavy', borderThickness: 1, opacity: 1.0,
-            movementMode: 'scroll', animationMode: 'none', bubbleStyle: 'none',
-            showUsername: 'inline', eventMode: 'both', alertDuration: 5,
+            movementMode: 'scroll', layoutExitMode: 'motion', layoutExitDuration: 0.32, tailFadeDuration: 0.5, animationMode: 'none', bubbleStyle: 'none',
+            showUsername: 'inline', userTheme: 'match', userColorSource: 'twitch', userSize: 0.7, filterScope: 'both', messageWhitelist: '', messageBlacklist: '',
+            commandMode: 'all', commandPrefix: '!', commandList: '',
+            emoteMode: 'bubble', emoteScale: 1.8, emoteMovementMode: 'float',
+            eventMode: 'both', alertDuration: 5,
+            eventFollowEnabled: true, eventSubEnabled: true, eventResubEnabled: true,
+            eventGiftsubEnabled: true, eventGiftbombEnabled: true, eventRaidEnabled: true, eventCheerEnabled: true,
             primaryColor: '', accentColor: '', colorPool: '',
             colorPoolPrimary: '', colorPoolAccent: '', colorPoolText: ''
         };
@@ -2741,6 +4239,7 @@
             try { localStorage.removeItem('niconico-custom-css'); } catch(e) {}
             
             updatePanelVisibility();
+            applyRuntimeConfig();
         }
 
         // --- Export all profiles as JSON download ---
@@ -2796,6 +4295,7 @@
             }
             tag.textContent = cssText;
             try { localStorage.setItem(CUSTOM_CSS_KEY, cssText); } catch(e) {}
+            refreshMatchedUsernameThemes();
         }
 
         function loadCustomCSSFromStorage() {
@@ -2837,19 +4337,33 @@
             }).join('\n\n');
         }
 
+        // --- Refresh user-theme-match chips against the current rendered theme ---
+        function regenerateMatchBadgeCSS() {
+            refreshMatchedUsernameThemes();
+        }
+
         // ============================================================
         //  PERSISTENCE: localStorage auto-save, per-theme, profiles
         // ============================================================
         const STORAGE_KEY = 'niconico-config';
         const THEME_PRESETS_KEY = 'niconico-theme-presets';
         const PROFILES_KEY = 'niconico-profiles';
+        const THEME_PRESET_KEYS = [
+            'chatDisplayMode', 'scrollSpeed', 'fontSize', 'fontFamily', 'fontUrl', 'themeCssUrl', 'textColor',
+            'textShadow', 'borderThickness', 'opacity', 'colorPool', 'colorPoolPrimary', 'colorPoolAccent', 'colorPoolText',
+            'movementMode', 'layoutExitMode', 'layoutExitDuration', 'tailFadeDuration', 'animationMode',
+            'showUsername', 'userTheme', 'userColorSource', 'userSize',
+            'emoteMode', 'emoteScale', 'emoteMovementMode',
+            'primaryColor', 'accentColor'
+        ];
 
         // --- Serializable config keys (exclude runtime-only fields) ---
         const PERSIST_KEYS = [
-            'chatDisplayMode', 'scrollSpeed', 'fontSize', 'fontFamily', 'fontUrl', 'textColor',
-            'textShadow', 'borderThickness', 'opacity', 'colorPool', 'colorPoolPrimary', 'colorPoolAccent', 'colorPoolText', 'movementMode',
-            'animationMode', 'bubbleStyle', 'showUsername', 'userTheme', 'userColorSource', 'userSize', 'eventMode',
-            'alertDuration', 'primaryColor', 'accentColor'
+            'sourceMode', 'twitchChannel', 'chatDisplayMode', 'scrollSpeed', 'messageLifetime', 'fontSize', 'fontFamily', 'fontUrl', 'themeCssUrl', 'textColor',
+            'textShadow', 'borderThickness', 'opacity', 'colorPool', 'colorPoolPrimary', 'colorPoolAccent', 'colorPoolText', 'movementMode', 'layoutExitMode', 'layoutExitDuration', 'tailFadeDuration',
+            'animationMode', 'bubbleStyle', 'showUsername', 'userTheme', 'userColorSource', 'userSize', 'filterScope', 'messageWhitelist', 'messageBlacklist', 'commandMode', 'commandPrefix', 'commandList', 'emoteMode', 'emoteScale', 'emoteMovementMode', 'eventMode',
+            'alertDuration', 'primaryColor', 'accentColor', 'eventFollowEnabled', 'eventSubEnabled', 'eventResubEnabled',
+            'eventGiftsubEnabled', 'eventGiftbombEnabled', 'eventRaidEnabled', 'eventCheerEnabled'
         ];
 
         function getSerializableConfig() {
@@ -2871,6 +4385,7 @@
                 if (!raw) return false;
                 const saved = JSON.parse(raw);
                 PERSIST_KEYS.forEach(k => { if (saved[k] !== undefined) config[k] = saved[k]; });
+                rebuildMessageFilterCache();
                 return true;
             } catch(e) { return false; }
         }
@@ -2885,8 +4400,10 @@
         function saveThemePreset(theme) {
             if (!theme || theme === 'none') return;
             const presets = getThemePresets();
-            const obj = getSerializableConfig();
-            delete obj.bubbleStyle; // don't store theme inside its own preset
+            const obj = {};
+            THEME_PRESET_KEYS.forEach((key) => {
+                if (config[key] !== undefined) obj[key] = config[key];
+            });
             presets[theme] = obj;
             try { localStorage.setItem(THEME_PRESETS_KEY, JSON.stringify(presets)); } catch(e) {}
         }
@@ -2896,9 +4413,10 @@
             const presets = getThemePresets();
             if (!presets[theme]) return false;
             const saved = presets[theme];
-            PERSIST_KEYS.forEach(k => {
-                if (k !== 'bubbleStyle' && saved[k] !== undefined) config[k] = saved[k];
+            THEME_PRESET_KEYS.forEach(k => {
+                if (saved[k] !== undefined) config[k] = saved[k];
             });
+            rebuildMessageFilterCache();
             return true;
         }
 
@@ -2924,6 +4442,8 @@
             const saved = profiles[name];
             PERSIST_KEYS.forEach(k => { if (saved[k] !== undefined) config[k] = saved[k]; });
             syncPanelFromConfig();
+            updatePanelVisibility();
+            applyRuntimeConfig();
             saveConfigToStorage();
             return true;
         }
@@ -2962,8 +4482,15 @@
             const panel = document.getElementById('test-panel');
             if (!panel) return;
             const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            const setChecked = (id, checked) => { const el = document.getElementById(id); if (el) el.checked = checked; };
+            setVal('ctrl-source-mode', config.sourceMode);
+            setVal('ctrl-twitch-channel', config.twitchChannel || '');
             setVal('ctrl-display-mode', config.chatDisplayMode);
             setVal('ctrl-movement', config.movementMode);
+            setVal('ctrl-message-lifetime', config.messageLifetime);
+            setVal('ctrl-layout-exit', config.layoutExitMode);
+            setVal('ctrl-layout-exit-duration', config.layoutExitDuration);
+            setVal('ctrl-tail-fade-duration', config.tailFadeDuration);
             setVal('ctrl-bubble', config.bubbleStyle);
             setVal('ctrl-anim', config.animationMode);
             setVal('ctrl-shadow', config.textShadow);
@@ -2975,16 +4502,33 @@
             setVal('ctrl-user-theme', config.userTheme);
             setVal('ctrl-user-color', config.userColorSource);
             setVal('ctrl-usersize', config.userSize);
+            setVal('ctrl-filter-scope', config.filterScope);
+            setVal('ctrl-message-whitelist', config.messageWhitelist || '');
+            setVal('ctrl-message-blacklist', config.messageBlacklist || '');
+            setVal('ctrl-command-mode', config.commandMode);
+            setVal('ctrl-command-prefix', config.commandPrefix || '!');
+            setVal('ctrl-command-list', config.commandList || '');
+            setVal('ctrl-emote-mode', config.emoteMode);
+            setVal('ctrl-emote-scale', config.emoteScale);
+            setVal('ctrl-emote-movement', config.emoteMovementMode);
             setVal('ctrl-eventmode', config.eventMode);
             setVal('ctrl-alertduration', config.alertDuration);
             setVal('ctrl-primary', config.primaryColor || '');
             setVal('ctrl-accent', config.accentColor || '');
             setVal('ctrl-fonturl', config.fontUrl || '');
+            setVal('ctrl-theme-css-url', config.themeCssUrl || '');
             setVal('ctrl-text', config.textColor || '');
             setVal('ctrl-colorpool', config.colorPool || '');
             setVal('ctrl-colorpoolprimary', config.colorPoolPrimary || '');
             setVal('ctrl-colorpoolaccent', config.colorPoolAccent || '');
             setVal('ctrl-colorpooltext', config.colorPoolText || '');
+            setChecked('ctrl-evt-follow', config.eventFollowEnabled);
+            setChecked('ctrl-evt-sub', config.eventSubEnabled);
+            setChecked('ctrl-evt-resub', config.eventResubEnabled);
+            setChecked('ctrl-evt-giftsub', config.eventGiftsubEnabled);
+            setChecked('ctrl-evt-giftbomb', config.eventGiftbombEnabled);
+            setChecked('ctrl-evt-raid', config.eventRaidEnabled);
+            setChecked('ctrl-evt-cheer', config.eventCheerEnabled);
             // Sync color pickers
             const pp = document.getElementById('ctrl-primary-picker');
             if (pp && config.primaryColor && /^#[0-9a-f]{6}$/i.test(config.primaryColor)) pp.value = config.primaryColor;
@@ -2999,39 +4543,8 @@
             // Hydrate config from localStorage (URL params already applied above)
             const hasUrlParams = window.location.search.length > 1;
             if (!hasUrlParams) loadConfigFromStorage();
-
-            // Generate exact theme matches for user-theme-match badges dynamically
-            try {
-                let matchCSS = '';
-                for (let i=0; i < document.styleSheets.length; i++) {
-                    const sheet = document.styleSheets[i];
-                    if (sheet.ownerNode && sheet.ownerNode.id === 'injected-custom-css') continue;
-                    for (let j = 0; j < sheet.cssRules.length; j++) {
-                        const rule = sheet.cssRules[j];
-                        if (rule.selectorText && rule.selectorText.includes('.nico-inner') && rule.selectorText.includes('.bubble-')) {
-                            const themeClass = rule.selectorText.split('.nico-inner')[0].trim();
-                            const bg = rule.style.background || rule.style.backgroundColor;
-                            const brd = rule.style.border || rule.style.borderColor || rule.style.borderTop;
-                            const shadow = rule.style.boxShadow;
-                            let block = '';
-                            if (bg) block += `background: ${bg} !important; `;
-                            if (brd) block += `border-color: ${brd} !important; border-top-color: ${brd} !important; border-bottom-color: ${brd} !important; `;
-                            if (shadow) block += `box-shadow: ${shadow} !important; `;
-                            if (block) matchCSS += `${themeClass} .user-theme-match.user-layout-badge-top .nico-username, ${themeClass} .user-theme-match.user-layout-badge-bottom .nico-username { ${block} }\n`;
-                        }
-                    }
-                }
-                if (matchCSS) {
-                    const style = document.createElement('style');
-                    style.id = 'dynamic-badge-match-css';
-                    style.textContent = matchCSS;
-                    document.head.appendChild(style);
-                }
-            } catch(e) { console.error("Could not generate badge theme matches", e); }
-
-            initLanes();
             window.addEventListener('resize', initLanes);
-            loadFont();
+            loadCustomCSSFromStorage();
 
             // Show test panel only when NOT in OBS
             if (!isOBS()) {
@@ -3058,13 +4571,23 @@
                     // Range slider value displays
                     function updateRangeDisplays() {
                         const sv = document.getElementById('speed-val');
+                        const mlv = document.getElementById('message-lifetime-val');
                         const fv = document.getElementById('fontsize-val');
+                        const lev = document.getElementById('layout-exit-duration-val');
+                        const tfv = document.getElementById('tail-fade-duration-val');
                         const bv = document.getElementById('border-val');
                         const ov = document.getElementById('opacity-val');
+                        const uv = document.getElementById('usersize-val');
+                        const ev = document.getElementById('emotesize-val');
                         if (sv) sv.textContent = document.getElementById('ctrl-speed').value;
+                        if (mlv) mlv.textContent = document.getElementById('ctrl-message-lifetime').value;
                         if (fv) fv.textContent = document.getElementById('ctrl-fontsize').value;
+                        if (lev) lev.textContent = document.getElementById('ctrl-layout-exit-duration').value;
+                        if (tfv) tfv.textContent = document.getElementById('ctrl-tail-fade-duration').value;
                         if (bv) bv.textContent = document.getElementById('ctrl-border-thickness').value;
                         if (ov) ov.textContent = Math.round(document.getElementById('ctrl-opacity').value * 100);
+                        if (uv) uv.textContent = document.getElementById('ctrl-usersize').value;
+                        if (ev) ev.textContent = document.getElementById('ctrl-emote-scale').value;
                     }
                     updateRangeDisplays();
 
@@ -3157,12 +4680,24 @@
                     });
                     renderPoolSwatches();
 
+                    ['ctrl-message-whitelist', 'ctrl-message-blacklist', 'ctrl-command-list'].forEach((id) => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.addEventListener('input', applyPanelConfig);
+                        el.addEventListener('change', applyPanelConfig);
+                    });
+
                     // Enter key on custom message
                     document.getElementById('ctrl-message').addEventListener('keydown', (e) => {
                         if (e.key === 'Enter') {
                             applyPanelConfig();
                             const text = document.getElementById('ctrl-message').value || 'Hello NicoNico!';
-                            spawnMessage(text, 'TestUser', '#00e5ff');
+                            ingestChatMessage({
+                                text,
+                                username: 'TestUser',
+                                userColor: '#00e5ff',
+                                source: 'manual-test'
+                            });
                         }
                     });
 
@@ -3176,6 +4711,8 @@
                             syncPanelFromConfig();
                             updateRangeDisplays();
                             renderPoolSwatches();
+                            updatePanelVisibility();
+                            applyRuntimeConfig();
                         }
                         lastBubble = newTheme;
                         saveConfigToStorage();
@@ -3189,10 +4726,17 @@
                     document.getElementById('btn-single').addEventListener('click', () => {
                         applyPanelConfig();
                         const text = document.getElementById('ctrl-message').value || 'Hello NicoNico!';
-                        spawnMessage(text, 'TestUser', '#00e5ff');
+                        ingestChatMessage({
+                            text,
+                            username: 'TestUser',
+                            userColor: '#00e5ff',
+                            source: 'manual-test'
+                        });
                     });
                     document.getElementById('btn-clear').addEventListener('click', () => {
+                        resetFloatingMessageTracking();
                         document.getElementById('niconico-container').innerHTML = '';
+                        document.getElementById('emote-overlay-container').innerHTML = '';
                         document.getElementById('alert-container').innerHTML = '';
                         activeMessages = 0;
                         alertQueue.length = 0;
@@ -3211,6 +4755,9 @@
                         const name = document.getElementById('ctrl-profile-list').value;
                         if (!name) { showProfileStatus('⚠️ Select a profile to load'); return; }
                         if (loadProfile(name)) {
+                            updateRangeDisplays();
+                            renderPoolSwatches();
+                            updatePanelVisibility();
                             showProfileStatus(`📂 Loaded profile "${name}"`);
                         } else {
                             showProfileStatus('⚠️ Profile not found');
@@ -3237,6 +4784,8 @@
                     });
                     document.getElementById('btn-reset-defaults').addEventListener('click', () => {
                         resetToDefaults();
+                        updateRangeDisplays();
+                        renderPoolSwatches();
                         showProfileStatus('🔄 Reset to factory defaults');
                     });
 
@@ -3277,9 +4826,6 @@
                         showProfileStatus(`🎨 Loaded CSS for "${theme}" — edit and click Apply`);
                     });
 
-                    // Load persisted custom CSS
-                    loadCustomCSSFromStorage();
-
                     // Event test buttons
                     document.getElementById('btn-evt-follow').addEventListener('click', () => {
                         applyPanelConfig();
@@ -3308,13 +4854,14 @@
                         handleStreamEvent('giftbomb', `${randomUser()} × ${count} subs!`, 'GIFT BOMB!');
                     });
 
-                    // Auto-spawn some test messages
-                    setTimeout(() => spawnTestMessages(6), 500);
+                    // Auto-spawn only for demo mode
+                    setTimeout(() => {
+                        if (config.sourceMode === 'demo') spawnTestMessages(6);
+                    }, 500);
                 }
             }
 
-            // Connect to Streamer.bot
-            connectToStreamerBot();
+            applyRuntimeConfig();
         }
 
         // Start
