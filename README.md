@@ -1,65 +1,44 @@
-# Streamer.bot Chat Overlay
+# Streamer Tools
 
-A highly customizable, single-file HTML chat overlay designed for [Streamer.bot](https://streamer.bot/). This overlay brings dynamic, stylish, and highly configurable chat visualization to your stream. It supports classic scrolling chat, Niconico-style passing messages, and various customized animations.
+A collection of professional, lightweight, browser-based overlays and utilities designed for live streaming. These tools are built as standalone HTML/JS files perfectly optimized for OBS Studio Browser Sources.
 
-## ✨ Features
+## 🛠 Included Tools
 
-- **No Server Required:** It's a single `overlay.html` file. Just add it as a Browser Source in OBS.
-- **Direct Streamer.bot Integration:** Connects directly via Streamer.bot's WebSocket server to listen to chat messages, cheers, raids, follows, and subscriptions.
-- **Live Control Panel:** Open `overlay.html` in a normal web browser to access a comprehensive, live-updating settings panel.
-- **Multiple Display Modes:**
-  - Classic Vertical or Horizontal scrolling.
-  - "NicoNico" mode (messages sliding horizontally across the screen).
-- **Extensive Theming & Styles:**
-  - Frost glass, neumorphic, neon glow, editorial brutalist, and more bubble styles.
-  - Customizable fonts, colors, borders, and text shadows.
-  - Per-user color palettes and Twitch-native role colors.
-- **Rich Emote Support:** Integrates natively with Twitch emotes and emojis.
-- **Animations:** Floating, plastering, swinging, and sliding entry/exit animations for chat bubbles.
-- **Import/Export:** Save and manage multiple profiles or share your custom configurations as JSON.
+### 1. Pattern Studio (`pattern.html`)
+A high-performance HTML physics engine that generates dynamic, infinitely moving grid backgrounds and intermission overlays directly inside OBS.
+- **Glassmorphism UI:** Complete modern frosted-glass layout for aesthetic configuration.
+- **High-Performance Physics:** Uses delta-time frame tracking and dynamic viewport culling to maintain buttery-smooth 60 FPS natively without exhausting browser CPU limits.
+- **Rich Asset Control:** Alternating grids, per-asset 90° rotation, adjustable gaps, rotation angles, and scrolling speeds.
+- **Production File Exports:** Download fully baked, persistent production HTML files with your exact configurations hard-coded inside. Bypass all JavaScript initialization bottlenecks when booting up scenes in OBS.
+- **Import Presets:** Drop any downloaded pattern file back into the Studio to instantly restore your layout and tweak it further.
+
+### 2. Swishy Chat Overlay (`overlay.html`)
+A highly customizable, single-file HTML chat overlay designed seamlessly for [Streamer.bot](https://streamer.bot/).
+- **Dynamic Connection:** Connects natively via Streamer.bot's WebSocket server to parse live chats, cheers, raids, follows, and subscriptions.
+- **Live Control Panel:** Accessible via local browser for complete real-time aesthetic control. Automatically hides configuration panels when loaded natively in OBS.
+- **Rich Emotes & Animations:** Integrates Twitch emotes gracefully with plastering, swinging, scrolling, and floating entry sequences. Includes dark/light text themes, threading, and crossed-out moderation filtering.
 
 ## 🚀 Setup Instructions
 
-### 1. Configure Streamer.bot
+All tools in this repository are designed to run fully locally without dependencies.
 
-Before using the overlay, you need to ensure Streamer.bot's WebSocket server is active:
-1. Open **Streamer.bot**.
-2. Go to `Servers/Clients` -> `WebSocket Server`.
-3. Check **Auto Start** and click **Start Server**.
-4. Take note of the Port (default is usually `8080`) and Endpoint (default is `/`).
+### Pattern Studio Setup
+1. Open `pattern.html` in your web browser (Chrome, Firefox, Safari).
+2. Configure your pattern grid using the left-hand slider panel. Upload custom image URLs or browse local files.
+3. Click "Download Production File" at the bottom of the config.
+4. Add that newly downloaded `.html` file to OBS as a **Browser Source** (Check "Local file").
+5. *(Optional)* Host `pattern.html` natively on a cloud VPS or NGINX web server to access it perpetually via a web URL.
 
-### 2. Add to OBS (or other streaming software)
-
-1. Add a new **Browser Source** to your scene.
-2. Select **Local file** and browse to the `overlay.html` file.
-3. Set the width and height (e.g., `1920` x `1080` for full screen, or a specific region if you prefer a floating chat box).
-4. Click **OK**. The overlay will automatically attempt to connect to Streamer.bot (usually `ws://127.0.0.1:8080/`).
-
-> **Note:** The settings test panel is deliberately hidden when loaded inside OBS so it doesn't appear on your stream.
-
-### 3. Customize Your Overlay
-
-To customize the look and feel of the overlay:
-1. Double-click the `overlay.html` file to open it in your regular web browser (Chrome, Firefox, Safari, etc.).
-2. You will see the **Control Panel** on the left side of the screen.
-3. Use the dropdowns, sliders, and color pickers to tweak the design in real-time.
-4. Click **Spawn Test** or **Send** to preview how messages will look.
-5. Once you are happy with the setup, the settings are automatically saved to your browser's local storage. You can also **Save Profile** or **Export** your config from the bottom of the panel.
-
-## ⚙️ Key Functionality & Settings
-
-- **Source Mode:** Choose between 'Streamer.bot' or pure Demo mode.
-- **Movement Mode:** Dictates how bubbles enter the screen (Scroll, Float, Plaster, Zoom, Swing).
-- **Bubble Effects:** Choose the background wrapper for messages (e.g., Rounded, Frosted Glass, Neumorphic, Cyberpunk).
-- **Event Toggles:** You can independently turn on or off stream events like Follows, Subs, Cheers, and Raids from appearing in the chat feed.
-- **Custom CSS:** A built-in editor lets you inject custom CSS for complete control over the layout.
+### Chat Overlay Setup
+1. Open **Streamer.bot**, navigate to `Servers/Clients` -> `WebSocket Server`, check **Auto Start**, and click **Start Server**.
+2. Double click `overlay.html` in your browser to customize your aesthetic and theme via the live control panel. Settings automatically save to local storage.
+3. Add `overlay.html` to OBS as a **Browser Source** (Check "Local file", set Width/Height). It will instantly connect to Streamer.bot in the background.
 
 ## 📝 License
-
-This project is provided as-is. Feel free to modify and customize it for your own stream!
+This project is provided as-is. Feel free to modify, break, or repurpose any codebase for your own stream!
 
 ---
 
 > [!NOTE]
 > This documentation was written by an AI coding assistant.
-> Inspired by and based on the concepts from [showmy.chat](https://github.com/BenDMyers/showmy.chat) by [Ben Myers](https://github.com/BenDMyers).
+> The Chat Overlay was inspired by and based on the concepts from [showmy.chat](https://github.com/BenDMyers/showmy.chat) by [Ben Myers](https://github.com/BenDMyers).
