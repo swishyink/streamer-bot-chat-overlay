@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern Studio V5 — Swishy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #8b5cf6;
+            --accent-glow: rgba(139, 92, 246, 0.5);
+            --accent-hover: #a78bfa;
+            --bg-dark: #0a0a0a;
+            --panel-bg: rgba(15, 15, 20, 0.45);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --input-bg: rgba(255, 255, 255, 0.05);
+            --font-main: 'Inter', sans-serif;
+            --font-heading: 'Outfit', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: var(--font-main); color: #fff;
+        }
+        #dom-compositor { position: fixed; inset: 0; z-index: 1; }
+        .layer-container { position: absolute; inset: 0; overflow: visible; }
+        .layer-spinner { position: absolute; left: 50%; top: 50%; transform-origin: center center; }
+        .layer-panner { position: absolute; left: 0; top: 0; will-change: transform; }
+        .pattern-icon {
+            position: absolute; width: var(--icon-scale); height: var(--icon-scale);
+            left: calc(var(--col) * var(--gap-x) + var(--row-offset));
+            top: calc(var(--row) * var(--gap-y));
+            background-size: contain; background-position: center; background-repeat: no-repeat;
+        }
+        .pattern-icon.even-row { --row-offset: 0px; }
+        .pattern-icon.odd-row { --row-offset: calc(var(--gap-x) * var(--offset-pct)); }
+
+
+        /* TEXT OVERLAY */
+        #text-overlay {
+            position: fixed; left: 50%; transform: translate(-50%, -50%);
+            z-index: 10; text-align: center; pointer-events: none; width: 90%;
+        }
+        .main-text {
+            font-family: var(--font-heading); color: inherit; display: inline-flex;
+            align-items: baseline; letter-spacing: 2px; text-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        .dots::after {
+            content: ''; display: inline-block; width: 1.5em; text-align: left;
+            animation: dotAnimation 2s infinite;
+        }
+        @keyframes dotAnimation {
+            0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; }
+        }
+
+        /* CONFIG PANEL */
+        #config-panel {
+            position: fixed; top: 20px; right: 20px; width: 360px;
+            max-height: 94vh; overflow-y: auto;
+            background: var(--panel-bg); backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid var(--panel-border); border-radius: 20px;
+            padding: 24px; z-index: 100; box-shadow: 0 30px 80px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05);
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s;
+        }
+        #config-panel::-webkit-scrollbar { width: 4px; }
+        #config-panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        #config-panel.hidden { transform: translateX(400px); opacity: 0; }
+
+        .panel-header {
+            margin-bottom: 24px; display: flex; justify-content: space-between; align-items: baseline;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 12px;
+        }
+        .panel-title { font-family: var(--font-heading); font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+        .panel-subtitle { font-family: var(--font-heading); font-size: 22px; color: var(--accent); margin-left: 6px; font-weight: 300; }
+
+        .section-label {
+            font-family: var(--font-heading);
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 2px; color: var(--accent); margin: 24px 0 12px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* LAYER MANAGEMENT */
+        #layers-list { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .layer-item {
+            background: var(--input-bg); border: 1px solid transparent;
+            border-radius: 12px; padding: 14px; font-size: 12px; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .layer-item.active { 
+            border-color: var(--accent); background: rgba(139, 92, 246, 0.1); 
+            box-shadow: inset 0 0 20px rgba(139, 92, 246, 0.05); 
+        }
+        .layer-name { font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+
+        .add-layer-btn {
+            width: 100%; background: var(--input-bg); border: 1px dashed rgba(255, 255, 255, 0.2);
+            padding: 12px; border-radius: 99px; color: #fff; font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+        .add-layer-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent); color: var(--accent-hover); }
+
+        /* ASSET LIST */
+        .asset-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .asset-entry { display: flex; gap: 8px; align-items: center; }
+        .asset-entry input { flex: 1; border-radius: 8px; }
+        .remove-asset-btn { color: #ff4a4a; cursor: pointer; font-size: 18px; padding: 0 4px; transition: text-shadow 0.2s; }
+        .remove-asset-btn:hover { text-shadow: 0 0 8px rgba(255, 74, 74, 0.8); }
+
+        /* CONTROLS */
+        .control-group { margin-bottom: 16px; }
+        .control-label {
+            display: flex; justify-content: space-between; font-size: 11px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.6); margin-bottom: 8px;
+        }
+        .control-label span:last-child { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 700; }
+
+        input[type="range"] {
+            width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px; appearance: none; outline: none; transition: background 0.2s;
+        }
+        input[type="range"]:hover { background: rgba(255, 255, 255, 0.15); }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 16px; height: 16px; background: #fff;
+            border-radius: 50%; cursor: pointer; box-shadow: 0 0 12px var(--accent-glow);
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); box-shadow: 0 0 16px var(--accent); }
+
+        input[type="text"], input[type="color"] {
+            width: 100%; background: var(--input-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08); color: #fff;
+            padding: 10px 14px; border-radius: 8px; font-family: var(--font-main);
+            font-size: 13px; outline: none; transition: all 0.2s;
+        }
+        input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 12px rgba(139, 92, 246, 0.2); }
+        input[type="color"] { height: 36px; padding: 2px; cursor: pointer; border-radius: 8px; }
+
+        .button-group { display: flex; gap: 10px; margin-top: 15px; }
+        button.action-btn {
+            flex: 1; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3);
+            color: var(--accent-hover); padding: 12px; border-radius: 99px;
+            font-family: var(--font-heading); font-weight: 700; text-transform: uppercase; font-size: 11px;
+            letter-spacing: 1.5px; cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        button.action-btn:hover { background: rgba(139, 92, 246, 0.25); border-color: var(--accent); box-shadow: 0 0 20px rgba(139, 92, 246, 0.2); color: #fff; }
+
+        #toggle-ui {
+            position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px;
+            background: var(--panel-bg); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 50%;
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 101; opacity: 0.5; transition: opacity 0.3s, transform 0.2s;
+        }
+        #toggle-ui:hover { opacity: 1; transform: scale(1.1); }
+
+        .asset-btn-group {
+            display: flex; gap: 4px; flex-shrink: 0;
+        }
+
+        .upload-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff; padding: 0 10px; border-radius: 6px; cursor: pointer; font-family: var(--font-heading);
+            font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .upload-btn:hover { background: rgba(255, 255, 255, 0.15); border-color: var(--accent); }
+
+        .production-alert {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .production-alert p {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        #toast {
+            position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(100px);
+            background: var(--panel-bg); border: 1px solid var(--accent);
+            padding: 12px 24px; border-radius: 999px; font-size: 13px; font-weight: 600;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 200;
+        }
+        #toast.visible { transform: translateX(-50%) translateY(0); }
+
+        .obs-hint { font-size: 9px; color: rgba(255, 255, 255, 0.3); margin-top: 20px; text-align: center; line-height: 1.5; }
+        
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="dom-compositor"></div>
+    
+
+    <div id="text-overlay">
+        <div class="main-text">
+            <span id="display-text">Intermission</span><span id="display-dots" class="dots"></span>
+        </div>
+    </div>
+
+    <div id="toggle-ui" onclick="toggleUI()">⚙️</div>
+
+    <div id="config-panel">
+        <div class="panel-header">
+            <span class="panel-title">Pattern</span>
+            <span class="panel-subtitle">Studio V5</span>
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">Global Background Color</div>
+            <input type="color" id="bgColor" value="#0a0a0a">
+        </div>
+
+        <span class="section-label">Pattern Layers <span id="layer-count">0</span></span>
+        <div id="layers-list"></div>
+        <button class="add-layer-btn" onclick="addLayer()">+ Add New Pattern Layer</button>
+
+        <div id="active-layer-settings" hidden>
+            <span class="section-label">Selected Layer Assets</span>
+            <div id="asset-list" class="asset-list"></div>
+            <button class="action-btn" onclick="addAsset()" style="width: 100%; margin-bottom: 20px; border-style: dashed;">+ Add Alternating Image</button>
+
+            <span class="section-label">Layer Parameters</span>
+            <div class="control-group">
+                <div class="control-label">Icon Scale <span id="val-layerScale">80px</span></div>
+                <input type="range" id="layerScale" min="30" max="600" step="1">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Icon Spacing <span id="val-layerGap">1.5</span></div>
+                <input type="range" id="layerGap" min="1.0" max="5" step="0.1" value="1.5">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Opacity <span id="val-layerOpacity">0.15</span></div>
+                <input type="range" id="layerOpacity" min="0" max="1" step="0.01">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Scroll Speed X <span id="val-layerSpeedX">1.0</span></div>
+                <input type="range" id="layerSpeedX" min="-10" max="10" step="0.1">
+            </div>
+            
+            <div class="control-group">
+                <div class="control-label">Scroll Speed Y <span id="val-layerSpeedY">1.0</span></div>
+                <input type="range" id="layerSpeedY" min="-10" max="10" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Rotation Angle <span id="val-layerAngle">45°</span></div>
+                <input type="range" id="layerAngle" min="0" max="360" step="1">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">Offset Odd Rows <span id="val-layerOffset">0%</span></div>
+                <input type="range" id="layerOffset" min="0" max="100" step="1" value="50">
+            </div>
+            
+            <button class="action-btn delete-layer-btn" id="deleteSelectedLayerBtn" style="color: #ff4a4a; border-color: rgba(255, 74, 74, 0.3); background: rgba(255, 74, 74, 0.05);">Delete This Layer</button>
+        </div>
+
+        <span class="section-label">Overlay Text</span>
+
+        <div class="control-group">
+            <div class="control-label">Text Message</div>
+            <input type="text" id="textContent" value="Intermission">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">Text Color</div>
+            <input type="color" id="textColor" value="#ffffff">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">Vertical Position <span id="val-textY">60%</span></div>
+            <input type="range" id="textY" min="0" max="100" step="1" value="60">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">Font Size <span id="val-textSize">5vw</span></div>
+            <input type="range" id="textSize" min="1" max="25" step="1" value="5">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">Show Dots</div>
+            <input type="checkbox" id="showDots" checked style="margin-top: 4px;">
+        </div>
+
+        <div class="button-group">
+            <button class="action-btn" onclick="resetSettings()" style="background: rgba(255, 74, 74, 0.05); color: #ff4a4a; border-color: rgba(255, 74, 74, 0.3);">Reset App</button>
+        </div>
+
+        <div class="production-alert">
+            <p>Ready for production?<br>This button saves all your patterns and settings into a fresh HTML file you can keep.</p>
+            <button class="action-btn" onclick="downloadProductionFile()" style="width: 100%; background: var(--accent); color: #fff; border: none; padding: 12px; margin-bottom: 8px;">Download Production File</button>
+            <label class="action-btn" style="width: 100%; display: block; text-align: center; color: rgba(255,255,255,0.7); border: 1px dashed rgba(255,255,255,0.2); cursor: pointer; padding: 10px; box-sizing: border-box;">
+                <input type="file" accept=".html" onchange="importProductionFile(event)" hidden>
+                Import Preset File
+            </label>
+        </div>
+
+        <div class="obs-hint">
+            The grid alternates between the images in your asset list.<br>
+            Supports animated GIFs perfectly. Settings persist.
+        </div>
+    </div>
+
+    <script>
+        const domCompositor = document.getElementById('dom-compositor');
+        const assetListUI = document.getElementById('asset-list');
+        const layersList = document.getElementById('layers-list');
+        const layerSettings = document.getElementById('active-layer-settings');
+        const toast = document.getElementById('toast');
+        const hasEditorUI = Boolean(assetListUI && layersList && layerSettings);
+
+        // STATE V5 DOM
+        const defaultState = {
+            bgColor: '#0a0a0a',
+            textContent: 'Starting Soon',
+            textColor: '#ffffff',
+            textY: 60,
+            textSize: 5,
+            showDots: true,
+            layers: []
+        };
+        // %%STATE_START%%
+        let state = {
+            ...defaultState
+        };
+        // %%STATE_END%%
+        state = {
+            ...defaultState,
+            ...state,
+            layers: Array.isArray(state.layers) ? state.layers : [...defaultState.layers]
+        };
+
+        let activeLayerIndex = -1;
+
+        function createLayer() {
+            const id = Date.now() + Math.random();
+            return {
+                id: id,
+                __cleanId: id.toString().replace('.', ''),
+                assets: ['default_icon.png'],
+                assetAngles: [0],
+                scale: 80, gap: 1.5, opacity: 0.15,
+                speedX: 0.5, speedY: 0.3, angle: 45, offset: 50,
+                posX: 0, posY: 0
+            };
+        }
+
+        function cacheLayerDOMRefs(layer) {
+            layer.__containerEl = document.getElementById(`layer-container-${layer.id}`);
+            layer.__spinnerEl = document.getElementById(`layer-spinner-${layer.id}`);
+            layer.__pannerEl = document.getElementById(`layer-panner-${layer.id}`);
+        }
+
+        function hasLiveLayerDOM() {
+            return Boolean(domCompositor && domCompositor.querySelector('.layer-panner'));
+        }
+
+        // V5 DOM PIPELINE
+        function rebuildAllDOM() {
+            if (!domCompositor) return;
+            domCompositor.innerHTML = '';
+            
+            // Clean up any old dynamically generated style tags to prevent memory leaks and downloaded file bloat
+            document.querySelectorAll('style[id^="style-layer-"]').forEach(el => el.remove());
+            
+            state.layers.forEach((layer) => {
+                if (!layer.__cleanId) layer.__cleanId = layer.id.toString().replace('.', '');
+                const cleanId = layer.__cleanId;
+                
+                // Safely append massive CSS blocks into the Head to guarantee full parsing by OBS Chromium
+                let styleEl = document.getElementById(`style-layer-${layer.id}`);
+                if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = `style-layer-${layer.id}`;
+                    document.head.appendChild(styleEl);
+                }
+                let cssRules = '';
+                layer.assets.forEach((url, idx) => {
+                    const angle = layer.assetAngles ? (layer.assetAngles[idx] || 0) : 0;
+                    cssRules += `.layer-${cleanId}-asset-${idx} { background-image: url('${url}'); transform: rotate(${angle}deg); }\n`;
+                });
+                styleEl.innerHTML = cssRules;
+                
+                const layerDOM = document.createElement('div');
+                layerDOM.className = 'layer-container';
+                layerDOM.id = `layer-container-${layer.id}`;
+                layerDOM.innerHTML = `
+                    <div class="layer-spinner" id="layer-spinner-${layer.id}">
+                        <div class="layer-panner" id="layer-panner-${layer.id}" data-grid-radius="0">
+                        </div>
+                    </div>
+                `;
+                domCompositor.appendChild(layerDOM);
+                cacheLayerDOMRefs(layer);
+                
+                rebuildLayerDOMGrid(layer);
+            });
+            syncLayerStylesAll();
+        }
+
+        function rebuildLayerDOMGrid(layer) {
+            const panner = layer.__pannerEl || document.getElementById(`layer-panner-${layer.id}`);
+            if (!panner) return;
+
+            const N = layer.assets.length || 1;
+            const diag = Math.sqrt(window.innerWidth ** 2 + window.innerHeight ** 2) + 200; 
+            const gapSize = Math.max(10, layer.scale * Math.max(0.1, layer.gap));
+            
+            // Compute how many columns we mathematically need to cover the screen plus wrapping overflow
+            let reqCols = Math.ceil((diag / 2 + (N * gapSize)) / gapSize);
+            reqCols = Math.min(65, reqCols); 
+
+            const currCols = parseInt(panner.dataset.gridRadius || "0");
+            
+            // Only rebuild the DOM if we are expanding into new visual territory OR shrinking away massive laggy offscreen amounts
+            if (reqCols > currCols || reqCols <= currCols - 5 || currCols === 0) {
+                let html = '';
+                if (!layer.__cleanId) layer.__cleanId = layer.id.toString().replace('.', '');
+                const cleanId = layer.__cleanId;
+                
+                for (let r = -reqCols; r <= reqCols; r++) {
+                    const rowClass = (Math.abs(r) % 2 === 1) ? 'odd-row' : 'even-row';
+                    for (let c = -reqCols; c <= reqCols; c++) {
+                        let assetIdx = (r + c) % N;
+                        if (assetIdx < 0) assetIdx += N;
+                        html += `<div class="pattern-icon ${rowClass} layer-${cleanId}-asset-${assetIdx}" style="--col: ${c}; --row: ${r};"></div>`;
+                    }
+                }
+                
+                panner.innerHTML = html;
+                panner.dataset.gridRadius = reqCols;
+            }
+        }
+
+        function syncLayerStylesAll() {
+            state.layers.forEach(layer => {
+                if (!layer.__containerEl || !layer.__spinnerEl || !layer.__pannerEl) cacheLayerDOMRefs(layer);
+                const container = layer.__containerEl;
+                const spinner = layer.__spinnerEl;
+                if (!container || !spinner || !layer.__pannerEl) return;
+                const gapPx = layer.scale * layer.gap;
+                
+                container.style.opacity = layer.opacity;
+                container.style.setProperty('--icon-scale', `${layer.scale}px`);
+                container.style.setProperty('--gap-x', `${gapPx}px`);
+                container.style.setProperty('--gap-y', `${gapPx}px`);
+                container.style.setProperty('--offset-pct', `${layer.offset / 100}`);
+                
+                spinner.style.transform = `translate(-50%, -50%) rotate(${layer.angle}deg)`;
+
+                // Pre-calculate expensive loop logic — skip all math from the hot animation path
+                const N = layer.assets.length || 1;
+                layer.__blockW = N * gapPx;
+                layer.__blockH = (N % 2 === 0 ? N : N * 2) * gapPx;
+                
+                // Trigger dynamic culling
+                rebuildLayerDOMGrid(layer);
+            });
+        }
+
+        let lastTime = 0;
+        function updateAnimation(time) {
+            if (!lastTime) lastTime = time;
+            const delta = time - lastTime;
+            lastTime = time;
+            
+            // Lock internal timeline perfectly rigidly isolating physical delta tracking natively 
+            const timeScale = delta / 16.666;
+
+            const layers = state.layers;
+            for (let i = 0, len = layers.length; i < len; i++) {
+                const layer = layers[i];
+                if (!layer.__blockW || !layer.__pannerEl) continue;
+                
+                layer.posX += layer.speedX * timeScale;
+                layer.posY += layer.speedY * timeScale;
+                
+                let safePanX = layer.posX % layer.__blockW;
+                if (safePanX < 0) safePanX += layer.__blockW;
+                
+                let safePanY = layer.posY % layer.__blockH;
+                if (safePanY < 0) safePanY += layer.__blockH;
+                
+                layer.__pannerEl.style.transform = `translate3d(${safePanX}px, ${safePanY}px, 0)`;
+            }
+            requestAnimationFrame(updateAnimation);
+        }
+
+        // DOM RENDERING
+        function renderUI(needsDOMRebuild = false) {
+            if (layersList) {
+                layersList.innerHTML = '';
+                const layerCount = document.getElementById('layer-count');
+                if (layerCount) layerCount.innerText = state.layers.length;
+
+                state.layers.forEach((layer, index) => {
+                    const item = document.createElement('div');
+                    item.className = `layer-item ${index === activeLayerIndex ? 'active' : ''}`;
+                    item.onclick = () => selectLayer(index);
+                    
+                    const assetCount = layer.assets.length;
+                    item.innerHTML = `<span class="layer-name">Layer ${index + 1}: ${assetCount} Icons</span>`;
+                    layersList.appendChild(item);
+                });
+            }
+
+            if (layerSettings) {
+                if (activeLayerIndex === -1) layerSettings.hidden = true;
+                else {
+                    layerSettings.hidden = false;
+                    updateLayerUI();
+                }
+            }
+            
+            updateGlobalUI();
+            if (needsDOMRebuild) rebuildAllDOM();
+        }
+
+        function updateLayerUI() {
+            const layer = state.layers[activeLayerIndex];
+            if (!layer || !assetListUI) return;
+
+            assetListUI.innerHTML = '';
+            layer.assets.forEach((url, i) => {
+                const angle = layer.assetAngles ? (layer.assetAngles[i] || 0) : 0;
+                const entry = document.createElement('div');
+                entry.className = 'asset-entry';
+                const isEmbeddedAsset = url.startsWith('data:');
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.title = url;
+                if (isEmbeddedAsset) {
+                    input.value = '';
+                    input.placeholder = 'Embedded image stored locally';
+                    input.readOnly = true;
+                } else {
+                    input.value = url;
+                    input.addEventListener('change', () => updateAsset(i, input.value));
+                }
+
+                const buttons = document.createElement('div');
+                buttons.className = 'asset-btn-group';
+
+                const rotateBtn = document.createElement('button');
+                rotateBtn.type = 'button';
+                rotateBtn.className = 'upload-btn';
+                rotateBtn.title = 'Rotate 90 degrees';
+                rotateBtn.style.border = 'none';
+                rotateBtn.textContent = `↻ ${angle}°`;
+                rotateBtn.addEventListener('click', () => rotateAsset(i));
+
+                const uploadLabel = document.createElement('label');
+                uploadLabel.className = 'upload-btn';
+                uploadLabel.title = 'Upload local file';
+                uploadLabel.textContent = '📁';
+
+                const uploadInput = document.createElement('input');
+                uploadInput.type = 'file';
+                uploadInput.accept = 'image/*';
+                uploadInput.hidden = true;
+                uploadInput.addEventListener('change', (event) => handleFileUpload(event, i));
+                uploadLabel.appendChild(uploadInput);
+
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'remove-asset-btn';
+                removeBtn.title = 'Remove icon';
+                removeBtn.textContent = '✕';
+                removeBtn.addEventListener('click', () => removeAsset(i));
+
+                buttons.appendChild(rotateBtn);
+                buttons.appendChild(uploadLabel);
+                buttons.appendChild(removeBtn);
+                entry.appendChild(input);
+                entry.appendChild(buttons);
+                assetListUI.appendChild(entry);
+            });
+
+            document.getElementById('layerScale').value = layer.scale;
+            document.getElementById('layerGap').value = layer.gap;
+            document.getElementById('layerOpacity').value = layer.opacity;
+            document.getElementById('layerSpeedX').value = layer.speedX;
+            document.getElementById('layerSpeedY').value = layer.speedY;
+            document.getElementById('layerAngle').value = layer.angle;
+            document.getElementById('layerOffset').value = layer.offset;
+
+            document.getElementById('val-layerScale').innerText = `${layer.scale}px`;
+            document.getElementById('val-layerGap').innerText = layer.gap;
+            document.getElementById('val-layerOpacity').innerText = layer.opacity;
+            document.getElementById('val-layerSpeedX').innerText = layer.speedX;
+            document.getElementById('val-layerSpeedY').innerText = layer.speedY;
+            document.getElementById('val-layerAngle').innerText = `${layer.angle}°`;
+            document.getElementById('val-layerOffset').innerText = `${layer.offset}%`;
+            
+            document.getElementById('deleteSelectedLayerBtn').onclick = () => deleteLayer(activeLayerIndex);
+        }
+
+        function updateGlobalUI() {
+            document.body.style.backgroundColor = state.bgColor;
+            
+            const bgInput = document.getElementById('bgColor');
+            if (bgInput) bgInput.value = state.bgColor;
+            const textInput = document.getElementById('textContent');
+            if (textInput) textInput.value = state.textContent;
+            const textColorInput = document.getElementById('textColor');
+            if (textColorInput) textColorInput.value = state.textColor;
+            const textYInput = document.getElementById('textY');
+            if (textYInput) textYInput.value = state.textY;
+            const textSizeInput = document.getElementById('textSize');
+            if (textSizeInput) textSizeInput.value = state.textSize;
+            const showDotsInput = document.getElementById('showDots');
+            if (showDotsInput) showDotsInput.checked = state.showDots;
+
+            const displayTxt = document.getElementById('display-text');
+            if (displayTxt) displayTxt.innerText = state.textContent;
+            
+            const displayDots = document.getElementById('display-dots');
+            if (displayDots) displayDots.style.display = state.showDots ? 'inline-block' : 'none';
+            
+            const overlay = document.getElementById('text-overlay');
+            if (overlay) {
+                overlay.style.top = `${state.textY}%`;
+                overlay.style.fontSize = `${state.textSize}vw`;
+                overlay.style.color = state.textColor;
+            }
+
+            const valTextY = document.getElementById('val-textY');
+            const valTextSize = document.getElementById('val-textSize');
+            if (valTextY) valTextY.innerText = `${state.textY}%`;
+            if (valTextSize) valTextSize.innerText = `${state.textSize}vw`;
+        }
+
+        // Lightweight label-only updater for slider drag — avoids full asset-list innerHTML rebuild
+        function updateLayerSliderLabels() {
+            const layer = state.layers[activeLayerIndex];
+            if (!layer) return;
+            const el = (id) => document.getElementById(id);
+            el('val-layerScale').innerText = `${layer.scale}px`;
+            el('val-layerGap').innerText = layer.gap;
+            el('val-layerOpacity').innerText = layer.opacity;
+            el('val-layerSpeedX').innerText = layer.speedX;
+            el('val-layerSpeedY').innerText = layer.speedY;
+            el('val-layerAngle').innerText = `${layer.angle}°`;
+            el('val-layerOffset').innerText = `${layer.offset}%`;
+        }
+
+        // ACTIONS
+        function selectLayer(index) { activeLayerIndex = index; renderUI(false); }
+        function addLayer() { state.layers.push(createLayer()); activeLayerIndex = state.layers.length - 1; renderUI(true); saveState(); }
+        function deleteLayer(index) { state.layers.splice(index, 1); activeLayerIndex = -1; renderUI(true); saveState(); }
+        
+        function addAsset() { 
+            if (activeLayerIndex === -1) return; 
+            state.layers[activeLayerIndex].assets.push('default_icon.png'); 
+            if (state.layers[activeLayerIndex].assetAngles) state.layers[activeLayerIndex].assetAngles.push(0);
+            renderUI(true); saveState(); 
+        }
+        function updateAsset(idx, val) { state.layers[activeLayerIndex].assets[idx] = val; renderUI(true); saveState(); }
+        function removeAsset(idx) { 
+            state.layers[activeLayerIndex].assets.splice(idx, 1);
+            if (state.layers[activeLayerIndex].assetAngles) state.layers[activeLayerIndex].assetAngles.splice(idx, 1);
+            if (state.layers[activeLayerIndex].assets.length === 0) {
+                state.layers[activeLayerIndex].assets = ['default_icon.png'];
+                if (state.layers[activeLayerIndex].assetAngles) state.layers[activeLayerIndex].assetAngles = [0];
+            }
+            renderUI(true); saveState(); 
+        }
+        function rotateAsset(idx) {
+            const layer = state.layers[activeLayerIndex];
+            if (!layer.assetAngles) layer.assetAngles = layer.assets.map(() => 0);
+            layer.assetAngles[idx] = ((layer.assetAngles[idx] || 0) + 90) % 360;
+            renderUI(true); saveState();
+        }
+
+        function toggleUI() { 
+            const panel = document.getElementById('config-panel');
+            if (panel) panel.classList.toggle('hidden'); 
+        }
+        function resetSettings() { localStorage.removeItem('swishy_compositor_v5'); location.reload(); }
+
+        // PERSISTENCE — trailing-edge debounce to avoid hammering localStorage with base64 blobs during slider drag
+        let _saveTimer = null;
+        function saveState() {
+            if (_saveTimer) clearTimeout(_saveTimer);
+            _saveTimer = setTimeout(() => {
+                const toSave = { ...state };
+                toSave.layers = state.layers.map(l => {
+                    const { __blockW, __blockH, __containerEl, __spinnerEl, __pannerEl, __cleanId, ...clean } = l;
+                    return clean;
+                });
+                localStorage.setItem('swishy_compositor_v5', JSON.stringify(toSave));
+            }, 400);
+        }
+
+        function loadState() {
+            // First check if this is a "Baked" production file containing saved layers in the script definition
+            if (state.layers && state.layers.length > 0) {
+                activeLayerIndex = 0;
+                const needsDOMRebuild = !hasLiveLayerDOM();
+                if (hasEditorUI) renderUI(needsDOMRebuild);
+                else {
+                    updateGlobalUI();
+                    if (needsDOMRebuild) rebuildAllDOM();
+                    else syncLayerStylesAll();
+                }
+                return;
+            }
+
+            const saved = localStorage.getItem('swishy_compositor_v5') || localStorage.getItem('swishy_compositor_v4');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state = {
+                        ...defaultState,
+                        ...state,
+                        ...parsed,
+                        layers: Array.isArray(parsed.layers) ? parsed.layers : state.layers
+                    };
+                } catch(e) {}
+            } else {
+                state.layers = [createLayer()];
+            }
+            activeLayerIndex = 0;
+            renderUI(true); // force build DOM
+        }
+
+        let globalStyleSyncFrame = null;
+        ['bgColor', 'textContent', 'textColor', 'textY', 'textSize', 'showDots'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.addEventListener('input', (e) => {
+                state[id] = e.target.type === 'checkbox' ? e.target.checked : (e.target.type === 'range' ? parseFloat(e.target.value) : e.target.value);
+                
+                if (globalStyleSyncFrame) cancelAnimationFrame(globalStyleSyncFrame);
+                globalStyleSyncFrame = requestAnimationFrame(() => {
+                    updateGlobalUI();
+                    saveState();
+                });
+            });
+        });
+
+        let layerStyleSyncFrame = null;
+        ['layerScale', 'layerGap', 'layerOpacity', 'layerSpeedX', 'layerSpeedY', 'layerAngle', 'layerOffset'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.addEventListener('input', (e) => {
+                if (activeLayerIndex === -1) return;
+                const key = id.replace('layer', '').charAt(0).toLowerCase() + id.replace('layer', '').slice(1);
+                state.layers[activeLayerIndex][key] = parseFloat(e.target.value);
+                
+                if (layerStyleSyncFrame) cancelAnimationFrame(layerStyleSyncFrame);
+                layerStyleSyncFrame = requestAnimationFrame(() => {
+                    updateLayerSliderLabels(); // lightweight: only updates label text, no innerHTML rebuild
+                    syncLayerStylesAll();
+                    saveState();
+                });
+            });
+        });
+
+        function handleFileUpload(event, assetIdx) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                state.layers[activeLayerIndex].assets[assetIdx] = dataUrl;
+                renderUI(true);
+                saveState();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function importProductionFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                // Primary: use safe marker comments bracketing the state block
+                let jsonStr = null;
+                const markerMatch = text.match(/\/\/ %%STATE_START%%\s*[\r\n]+\s*let\s+state\s*=\s*([\s\S]*?);\s*[\r\n]+\s*\/\/ %%STATE_END%%/);
+                if (markerMatch && markerMatch[1]) {
+                    jsonStr = markerMatch[1];
+                } else {
+                    // Fallback: legacy files without markers
+                    const legacyMatch = text.match(/let\s+state\s*=\s*(\{[\s\S]*?\});/);
+                    if (legacyMatch && legacyMatch[1]) jsonStr = legacyMatch[1];
+                }
+                if (jsonStr) {
+                    try {
+                        const parsed = JSON.parse(jsonStr);
+                        // Hydrate __cleanId on loaded layers
+                        if (parsed.layers) parsed.layers.forEach(l => { l.__cleanId = l.id.toString().replace('.', ''); });
+                        state = { ...state, ...parsed };
+                        activeLayerIndex = 0;
+                        renderUI(true);
+                        saveState();
+                        alert('Preset loaded successfully! Your workspace has been updated.');
+                    } catch(err) {
+                        alert('Error: Could not parse preset data. The file may be corrupted.');
+                    }
+                } else {
+                    alert('Error: This file does not appear to be a valid Swishy Pattern Studio preset.');
+                }
+                event.target.value = null;
+            };
+            reader.readAsText(file);
+        }
+
+        function downloadProductionFile() {
+            const clone = document.documentElement.cloneNode(true);
+            const toggleBtn = clone.querySelector('#toggle-ui');
+            const panel = clone.querySelector('#config-panel');
+            if (toggleBtn) toggleBtn.remove();
+            if (panel) panel.remove();
+
+            const currentHtml = clone.outerHTML;
+
+            // Strip all internal cache properties from the exported state
+            const cleanState = { ...state };
+            cleanState.layers = state.layers.map(l => {
+                const { __blockW, __blockH, __containerEl, __spinnerEl, __pannerEl, __cleanId, posX, posY, ...rest } = l;
+                return { ...rest, posX: 0, posY: 0 };
+            });
+
+            const scriptInjectedHtml = currentHtml.replace(
+                /\/\/ %%STATE_START%%[\s\S]*?\/\/ %%STATE_END%%/,
+                `// %%STATE_START%%\n        let state = ${JSON.stringify(cleanState, null, 4)};\n        // %%STATE_END%%`
+            );
+
+            const blob = new Blob([scriptInjectedHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `configured_pattern_${Date.now()}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        let resizeSyncFrame = null;
+        window.addEventListener('resize', () => {
+            if (resizeSyncFrame) cancelAnimationFrame(resizeSyncFrame);
+            resizeSyncFrame = requestAnimationFrame(() => {
+                syncLayerStylesAll();
+            });
+        });
+
+        function applyURLParams() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('ui') === '0') toggleUI();
+            
+            params.forEach((val, key) => {
+                if (state.hasOwnProperty(key) && key !== 'layers') {
+                    if (val === 'true' || val === 'false') state[key] = (val === 'true');
+                    else state[key] = isNaN(val) ? val : parseFloat(val);
+                }
+            });
+
+            let i = 0;
+            let temp = [];
+            const getNum = (v, f) => isNaN(parseFloat(v)) ? f : parseFloat(v);
+            
+            while(params.has(`l${i}_a`)) {
+                let assetsArr = params.get(`l${i}_a`).split('|');
+                let anglesArr = params.has(`l${i}_t`) ? params.get(`l${i}_t`).split('|').map(Number) : assetsArr.map(() => 0);
+                temp.push({
+                    id: Date.now() + Math.random(),
+                    assets: assetsArr,
+                    assetAngles: anglesArr,
+                    scale: Math.max(30, getNum(params.get(`l${i}_s`), 80)),
+                    gap: Math.max(1.0, getNum(params.get(`l${i}_g`), 1.5)),
+                    opacity: getNum(params.get(`l${i}_o`), 0.15),
+                    speedX: getNum(params.get(`l${i}_x`), 0.5),
+                    speedY: getNum(params.get(`l${i}_y`), 0.3),
+                    angle: getNum(params.get(`l${i}_r`), 45),
+                    offset: getNum(params.get(`l${i}_f`), 50),
+                    posX: 0, posY: 0
+                });
+                i++;
+            }
+            if (temp.length > 0) {
+                state.layers = temp;
+                renderUI(true);
+            } else {
+                updateGlobalUI();
+            }
+        }
+
+        // START
+        if (window.obsstudio) {
+            const toggleUi = document.getElementById('toggle-ui');
+            const configPanel = document.getElementById('config-panel');
+            if (toggleUi) toggleUi.style.display = 'none';
+            if (configPanel) configPanel.style.display = 'none';
+        }
+        
+        loadState();
+        applyURLParams();
+        requestAnimationFrame(updateAnimation);
+    </script>
+</body>
+</html>
